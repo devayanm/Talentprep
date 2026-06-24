@@ -1,0 +1,6 @@
+{
+  "name": "Interview Question Bank Generator",
+  "description": "Generate tailored vendor-level and client-level interview preparation guides by analyzing resumes and job descriptions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
