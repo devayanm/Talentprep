@@ -6,6 +6,7 @@ import { Sparkles } from "lucide-react";
 // Import core utility libraries
 import { parseMarkdownToQuestionBank } from "./lib/parser";
 import { downloadMarkdown, downloadHtml } from "./lib/exporter";
+import { RESUME_TEMPLATES, DEFAULT_COVER_LETTER_TEMPLATE, DEFAULT_PITCH_TEMPLATE } from "./lib/templates";
 
 // Import modular sub-components
 import Header from "./components/Header";
@@ -63,9 +64,10 @@ export default function App() {
   // Custom Modules State (Dashboard + LaTeX Workspace)
   const [viewPage, setViewPage] = useState<'home' | 'workspace'>('home');
   const [selectedModule, setSelectedModule] = useState<'screen_prep' | 'resume' | 'cover_letter' | 'pitch'>('screen_prep');
-  const [resumeLatex, setResumeLatex] = useState<string>('');
-  const [coverLetterLatex, setCoverLetterLatex] = useState<string>('');
-  const [pitchLatex, setPitchLatex] = useState<string>('');
+  const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<string>("default_alex_webb");
+  const [resumeLatex, setResumeLatex] = useState<string>(RESUME_TEMPLATES[0].latex);
+  const [coverLetterLatex, setCoverLetterLatex] = useState<string>(DEFAULT_COVER_LETTER_TEMPLATE);
+  const [pitchLatex, setPitchLatex] = useState<string>(DEFAULT_PITCH_TEMPLATE);
   const [targetPages, setTargetPages] = useState<string>('flexible');
   const [isGeneratingLatex, setIsGeneratingLatex] = useState<boolean>(false);
   const [latexModelUsed, setLatexModelUsed] = useState<string | null>(null);
@@ -360,6 +362,11 @@ export default function App() {
           jobDescription, 
           config, 
           targetPages,
+          templateLatex: mode === 'resume' ? (
+            selectedResumeTemplateId === 'custom' 
+              ? resumeLatex 
+              : RESUME_TEMPLATES.find(t => t.id === selectedResumeTemplateId)?.latex
+          ) : undefined,
           preferredModel: selectedModelName 
         }),
       });
@@ -598,112 +605,113 @@ export default function App() {
           hasApiKey={hasApiKey} 
         />
       ) : (
-        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0 no-print z-10">
-          {/* LEFT SIDEBAR: INPUT CONTROLS */}
-          <ConfigurationSidebar
-            resume={resume}
-            setResume={setResume}
-            jobDescription={jobDescription}
-            setJobDescription={setJobDescription}
-            candidateName={candidateName}
-            setCandidateName={setCandidateName}
-            targetRole={targetRole}
-            setTargetRole={setTargetRole}
-            targetClient={targetClient}
-            setTargetClient={setTargetClient}
-            vendorName={vendorName}
-            setVendorName={setVendorName}
-            domain={domain}
-            setDomain={setDomain}
-            basicDiff={basicDiff}
-            intermediateDiff={intermediateDiff}
-            advancedDiff={advancedDiff}
-            onDiffChange={handleDiffChange}
-            selectedModelName={selectedModelName}
-            setSelectedModelName={setSelectedModelName}
-            isGenerating={isGenerating}
-            apiError={apiError}
-            onGenerate={handleGenerate}
-            onLoadPreset={handleLoadPreset}
-            selectedModule={selectedModule}
-            isGeneratingLatex={isGeneratingLatex}
-            onGenerateLatex={handleGenerateLatex}
-          />
-
-          {/* RIGHT AREA: RESULTS VIEWER */}
-          <section className="lg:col-span-8 flex flex-col bg-slate-900/10 overflow-y-auto max-h-[calc(100vh-4rem)] relative text-white border-l border-white/5">
-            
-            {/* MODULE SELECTOR TABS */}
-            <div className="bg-slate-950/90 border-b border-white/10 px-6 py-3.5 sticky top-0 z-20 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto max-w-full">
-                <button
-                  onClick={() => setSelectedModule('screen_prep')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedModule === 'screen_prep' 
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  📋 Screen Prep Bank
-                </button>
-                
-                <button
-                  onClick={() => setSelectedModule('resume')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedModule === 'resume' 
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  📄 ATS LaTeX Resume
-                </button>
-                
-                <button
-                  onClick={() => setSelectedModule('cover_letter')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedModule === 'cover_letter' 
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  ✉️ LaTeX Cover Letter
-                </button>
-                
-                <button
-                  onClick={() => setSelectedModule('pitch')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedModule === 'pitch' 
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  ⚡ Pitch & Cheat-Sheet
-                </button>
-              </div>
-
-              {selectedModule !== 'screen_prep' && (
-                <button
-                  onClick={() => handleGenerateLatex(selectedModule)}
-                  disabled={isGeneratingLatex}
-                  className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-xs font-mono font-black rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_2px_10px_rgba(242,125,38,0.25)] transition-all hover:-translate-y-0.5 text-white active:translate-y-0"
-                >
-                  {isGeneratingLatex ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
-                      <span>Compiling...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={13} className="text-white animate-pulse" />
-                      <span>Compile LaTeX</span>
-                    </>
-                  )}
-                </button>
-              )}
+        <div className="flex-1 flex flex-col min-h-0 no-print z-10 relative">
+          
+          {/* MASTER COMMAND NAVIGATION TABS BAR */}
+          <div className="bg-slate-950/95 border-b border-white/10 px-6 py-4 sticky top-0 z-20 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto max-w-full">
+              <button
+                onClick={() => setSelectedModule('screen_prep')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedModule === 'screen_prep' 
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                📋 Screen Prep Bank
+              </button>
+              
+              <button
+                onClick={() => setSelectedModule('resume')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedModule === 'resume' 
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                📄 ATS LaTeX Resume
+              </button>
+              
+              <button
+                onClick={() => setSelectedModule('cover_letter')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedModule === 'cover_letter' 
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                ✉️ LaTeX Cover Letter
+              </button>
+              
+              <button
+                onClick={() => setSelectedModule('pitch')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedModule === 'pitch' 
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                ⚡ Pitch & Cheat-Sheet
+              </button>
             </div>
 
-            {selectedModule === 'screen_prep' ? (
-              <>
+            {selectedModule !== 'screen_prep' && (
+              <button
+                onClick={() => handleGenerateLatex(selectedModule)}
+                disabled={isGeneratingLatex}
+                className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-xs font-mono font-black rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_2px_10px_rgba(242,125,38,0.25)] transition-all hover:-translate-y-0.5 text-white active:translate-y-0"
+              >
+                {isGeneratingLatex ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
+                    <span>Compiling...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} className="text-white animate-pulse" />
+                    <span>Compile LaTeX</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* TWO-COLUMN LAYOUT SEGMENTS BASED ON MODULE */}
+          {selectedModule === 'screen_prep' ? (
+            <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
+              {/* LEFT SIDEBAR: INPUT CONTROLS */}
+              <ConfigurationSidebar
+                resume={resume}
+                setResume={setResume}
+                jobDescription={jobDescription}
+                setJobDescription={setJobDescription}
+                candidateName={candidateName}
+                setCandidateName={setCandidateName}
+                targetRole={targetRole}
+                setTargetRole={setTargetRole}
+                targetClient={targetClient}
+                setTargetClient={setTargetClient}
+                vendorName={vendorName}
+                setVendorName={setVendorName}
+                domain={domain}
+                setDomain={setDomain}
+                basicDiff={basicDiff}
+                intermediateDiff={intermediateDiff}
+                advancedDiff={advancedDiff}
+                onDiffChange={handleDiffChange}
+                selectedModelName={selectedModelName}
+                setSelectedModelName={setSelectedModelName}
+                isGenerating={isGenerating}
+                apiError={apiError}
+                onGenerate={handleGenerate}
+                onLoadPreset={handleLoadPreset}
+                selectedModule={selectedModule}
+                isGeneratingLatex={isGeneratingLatex}
+                onGenerateLatex={handleGenerateLatex}
+              />
+
+              {/* RIGHT AREA: SCREEN PREP RESULTS */}
+              <section className="lg:col-span-8 flex flex-col bg-slate-900/10 overflow-y-auto max-h-[calc(100vh-8rem)] relative text-white border-l border-white/5">
                 {/* Header Panel for Generated Content */}
                 <ResultsHeader
                   candidateName={candidateName}
@@ -763,54 +771,68 @@ export default function App() {
                     setSelectedModelName={setSelectedModelName}
                   />
                 </div>
-              </>
-            ) : selectedModule === 'resume' ? (
-              <div className="p-6 flex-1 flex flex-col min-h-0">
-                <LatexWorkspace
-                  latexCode={resumeLatex}
-                  setLatexCode={setResumeLatex}
-                  isGenerating={isGeneratingLatex}
-                  onGenerate={() => handleGenerateLatex('resume')}
-                  title="ATS LaTeX Resume Reformatter"
-                  subtitle="Re-aligns accomplishments with Job Description keywords and reformats to ATS standards."
-                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_resume.tex`}
-                  type="resume"
-                  targetPages={targetPages}
-                  setTargetPages={setTargetPages}
-                  activeModelUsed={latexModelUsed}
-                />
-              </div>
-            ) : selectedModule === 'cover_letter' ? (
-              <div className="p-6 flex-1 flex flex-col min-h-0">
-                <LatexWorkspace
-                  latexCode={coverLetterLatex}
-                  setLatexCode={setCoverLetterLatex}
-                  isGenerating={isGeneratingLatex}
-                  onGenerate={() => handleGenerateLatex('cover_letter')}
-                  title="LaTeX Cover Letter Builder"
-                  subtitle="Crafts a highly personalized executive narrative addressing target client pain points."
-                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_cover_letter.tex`}
-                  type="cover_letter"
-                  activeModelUsed={latexModelUsed}
-                />
-              </div>
-            ) : (
-              <div className="p-6 flex-1 flex flex-col min-h-0">
-                <LatexWorkspace
-                  latexCode={pitchLatex}
-                  setLatexCode={setPitchLatex}
-                  isGenerating={isGeneratingLatex}
-                  onGenerate={() => handleGenerateLatex('pitch')}
-                  title="60s Elevator Pitch & STAR Briefing"
-                  subtitle="Verbal elevator pitch introduction transcript plus STAR behavioral story structures."
-                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_interview_brief.tex`}
-                  type="pitch"
-                  activeModelUsed={latexModelUsed}
-                />
-              </div>
-            )}
-          </section>
-        </main>
+              </section>
+            </main>
+          ) : selectedModule === 'resume' ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              <LatexWorkspace
+                latexCode={resumeLatex}
+                setLatexCode={setResumeLatex}
+                isGenerating={isGeneratingLatex}
+                onGenerate={() => handleGenerateLatex('resume')}
+                title="ATS LaTeX Resume Reformatter"
+                subtitle="Re-aligns accomplishments with Job Description keywords and reformats to ATS standards."
+                fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_resume.tex`}
+                type="resume"
+                targetPages={targetPages}
+                setTargetPages={setTargetPages}
+                activeModelUsed={latexModelUsed}
+                resumeText={resume}
+                setResumeText={setResume}
+                jdText={jobDescription}
+                setJdText={setJobDescription}
+                selectedTemplateId={selectedResumeTemplateId}
+                setSelectedTemplateId={setSelectedResumeTemplateId}
+              />
+            </div>
+          ) : selectedModule === 'cover_letter' ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              <LatexWorkspace
+                latexCode={coverLetterLatex}
+                setLatexCode={setCoverLetterLatex}
+                isGenerating={isGeneratingLatex}
+                onGenerate={() => handleGenerateLatex('cover_letter')}
+                title="LaTeX Cover Letter Builder"
+                subtitle="Crafts a highly personalized executive narrative addressing target client pain points."
+                fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_cover_letter.tex`}
+                type="cover_letter"
+                activeModelUsed={latexModelUsed}
+                resumeText={resume}
+                setResumeText={setResume}
+                jdText={jobDescription}
+                setJdText={setJobDescription}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col min-h-0">
+              <LatexWorkspace
+                latexCode={pitchLatex}
+                setLatexCode={setPitchLatex}
+                isGenerating={isGeneratingLatex}
+                onGenerate={() => handleGenerateLatex('pitch')}
+                title="60s Elevator Pitch & STAR Briefing"
+                subtitle="Verbal elevator pitch introduction transcript plus STAR behavioral story structures."
+                fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_interview_brief.tex`}
+                type="pitch"
+                activeModelUsed={latexModelUsed}
+                resumeText={resume}
+                setResumeText={setResume}
+                jdText={jobDescription}
+                setJdText={setJobDescription}
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* PRINT-ONLY LAYOUT */}

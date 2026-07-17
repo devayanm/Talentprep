@@ -100,10 +100,6 @@ app.post("/api/generate-questions", async (req, res) => {
     });
   }
 
-  if (!resume || !jobDescription) {
-    return res.status(400).json({ error: "Resume and Job Description are required." });
-  }
-
   const {
     candidateName,
     targetRole,
@@ -111,7 +107,12 @@ app.post("/api/generate-questions", async (req, res) => {
     vendorName,
     domain,
     difficultyDistribution,
-  } = config;
+  } = config || {};
+
+  // Relax validation check: Require at least one identifying item instead of demanding both
+  if (!resume && !jobDescription && !targetRole) {
+    return res.status(400).json({ error: "Please provide at least a Resume, a Job Description, or a Target Role to compile preparation materials." });
+  }
 
   // Build the detailed prompt enforcing all constraints from the Master Prompt
   const prompt = `
@@ -119,16 +120,22 @@ Generate a professional, vendor-level interview preparation question bank by ana
 The final guide must resemble the interview preparation documents used by large staffing firms (such as Tek Inspirations, Centraprise, Randstad, Apex Systems, Cognizant, TCS, Infosys, Deloitte, Accenture) before submitting candidates to end clients.
 
 Candidate Name: ${candidateName || "Candidate"}
-Target Role: ${targetRole || "Role Specified in JD"}
-Target Client: ${targetClient || "Client Specified in JD"}
+Target Role: ${targetRole || "Role Specified"}
+Target Client: ${targetClient || "Client Specified"}
 Vendor / Staffing Agency: ${vendorName || "Staffing Agency"}
 Industry Domain: ${domain || "General"}
 
+--- INPUT VARIABILITY ROBUSTNESS ---
+Note: The Candidate Resume or target Job Description may be empty or incomplete:
+- If CANDIDATE RESUME is empty or placeholder: Generate general technical screening questions suited for a top-tier candidate applying to the Target Role and Job Description. Focus Section 1 (Resume Validation) on general experience and achievement verification questions.
+- If JOB DESCRIPTION is empty or placeholder: Focus the entire guide on validating the Candidate's Resume experience, technical skills, and industry domain best practices.
+- If both are empty: Generate a stellar, industry-standard interview prep guide for a candidate entering the Target Role.
+
 --- CANDIDATE RESUME ---
-${resume}
+${resume || "No resume provided. Assume a standard senior-level professional profile for the target role."}
 
 --- JOB DESCRIPTION ---
-${jobDescription}
+${jobDescription || "No job description provided. Optimize for general technical screening in the target role and domain."}
 
 --- PRIMAL INSTRUCTIONS & GOALS ---
 1. Prepare the candidate for: Vendor Screening, Technical Round, and Client Interview.
@@ -294,7 +301,7 @@ Begin generating the interview preparation question bank strictly following thes
 
 // Endpoint to stream generated LaTeX Resume
 app.post("/api/generate-resume-latex", async (req, res) => {
-  const { resume, jobDescription, config, targetPages } = req.body;
+  const { resume, jobDescription, config, targetPages, templateLatex } = req.body;
 
   if (!ai) {
     return res.status(500).json({
@@ -316,26 +323,14 @@ app.post("/api/generate-resume-latex", async (req, res) => {
     ? "Optimize content density for exactly 2 pages. Include detailed professional summaries, up to 4 roles and 3 projects with comprehensive bullet points demonstrating quantitative impact."
     : "Output a natural length, typically 1 to 2 pages based on experience depth.";
 
-  const prompt = `
-You are an expert resume writer and ATS optimization specialist.
-Reformat the candidate's resume to match the exact LaTeX template and styling rules provided below.
-Align the resume contents with the provided Job Description to make it highly ATS-friendly, optimizing descriptions for matching keywords, phrasing achievements with quantitative impact, and using industry terms.
-
-Page Target Rule: ${pageLimitInstruction}
-
-Candidate Name: ${candidateName || "Candidate Name"}
-Target Role: ${targetRole || "Target Role"}
-Target Client: ${targetClient || "Target Client"}
-Vendor / Staffing Agency: ${vendorName || "Staffing Agency"}
-Industry Domain: ${domain || "General"}
-
---- CANDIDATE RESUME ---
-${resume}
-
---- JOB DESCRIPTION ---
-${jobDescription}
-
---- PRESETS & LATEX TEMPLATE MANDATE ---
+  const templateMandate = templateLatex 
+    ? `--- PRESETS & LATEX TEMPLATE MANDATE ---
+You must output a single fully-compilable LaTeX file. You MUST strictly use the EXACT preamble, documentclass, margins, custom commands (such as \\resumeSubheading, \\resumeItem, etc.), and layout styling defined in the template below. 
+Do NOT invent new custom command definitions or change font packages unless they are in the template. Re-align and reformat the candidate's achievements and projects into this style:
+\`\`\`latex
+${templateLatex}
+\`\`\``
+    : `--- PRESETS & LATEX TEMPLATE MANDATE ---
 You must output a single fully-compilable LaTeX file. Maintain this EXACT structural and aesthetic preamble:
 \`\`\`latex
 \\documentclass[letterpaper,10pt]{article}
@@ -386,12 +381,38 @@ You must output a single fully-compilable LaTeX file. Maintain this EXACT struct
   \\begin{tabular*}{0.97\\textwidth}[t]{l@{\\extracolsep{\\fill}}r}
     \\textbf{#1} & #2 \\\\
     \\textit{#3} & \\textit{#4} \\\\
-  \end{tabular*}\\vspace{-7pt}
+  \\end{tabular*}\\vspace{-7pt}
 }
 \\renewcommand\\labelitemii{$\\vcenter{\\hbox{\\tiny$\\bullet$}}$}
 \\newcommand{\\resumeSubHeadingList}{\\begin{itemize}[leftmargin=0.15in, label={}]}
 \\newcommand{\\resumeSubHeadingListEnd}{\\end{itemize}}
-\`\`\`
+\`\`\``;
+
+  const prompt = `
+You are an expert resume writer and ATS optimization specialist.
+Reformat the candidate's resume to match the exact LaTeX template and styling rules provided below.
+Align the resume contents with the provided Job Description to make it highly ATS-friendly, optimizing descriptions for matching keywords, phrasing achievements with quantitative impact, and using industry terms.
+
+--- INPUT VARIABILITY ROBUSTNESS ---
+Note: Either the candidate's resume or the target Job Description may be empty or incomplete:
+- If CANDIDATE RESUME is empty: Create an incredibly clean, high-impact boilerplate Resume template for the specified Target Role, featuring realistic placeholder achievements, project bullet points, and skills that the user can later customize.
+- If JOB DESCRIPTION is empty: Reformat and clean up the candidate's resume based purely on the candidate resume provided, optimizing for general ATS best practices, correcting typography, and implementing beautiful LaTeX formatting.
+
+Page Target Rule: ${pageLimitInstruction}
+
+Candidate Name: ${candidateName || "Candidate Name"}
+Target Role: ${targetRole || "Target Role"}
+Target Client: ${targetClient || "Target Client"}
+Vendor / Staffing Agency: ${vendorName || "Staffing Agency"}
+Industry Domain: ${domain || "General"}
+
+--- CANDIDATE RESUME ---
+${resume || "No resume provided. Generate a high-quality professional boilerplate for the specified role."}
+
+--- JOB DESCRIPTION ---
+${jobDescription || "No job description provided. Perform standard ATS-optimized formatting and styling."}
+
+${templateMandate}
 
 --- WRITING & REFORMATTING RULES ---
 1. Header: Render candidate name at the top in \\textbf{\\Huge Candidate Name}. Render contact details nicely below (Phone, Email, LinkedIn, GitHub). Escape all special characters in URLs and emails properly (such as using \\href{mailto:email}{email}, and escaping '_' as \\_).
@@ -476,15 +497,20 @@ Generate a tailored, high-impact Cover Letter in LaTeX that matches the fonts an
 Address it to the hiring manager of ${targetClient || "the Target Client"} for the role of ${targetRole || "the Target Role"}.
 Align the narrative with the Job Description's key challenges and show how the candidate's experience solves their specific problems.
 
+--- INPUT VARIABILITY ROBUSTNESS ---
+Note: Either the candidate's resume or the target Job Description may be empty or incomplete:
+- If CANDIDATE RESUME is empty: Draft a highly professional Cover Letter with generic strong narrative highlights for the Target Role, allowing the candidate to fill in specific metric highlights later.
+- If JOB DESCRIPTION is empty: Create a general-purpose professional cover letter expressing high interest in the Target Role, showcasing key skills and achievements from the candidate's resume.
+
 Candidate Name: ${candidateName || "Candidate Name"}
 Vendor / Staffing Agency: ${vendorName || "Staffing Agency"}
 Industry Domain: ${domain || "General"}
 
 --- CANDIDATE RESUME ---
-${resume}
+${resume || "No resume provided. Write a high-impact cover letter for the specified target role with professional achievements placeholders."}
 
 --- JOB DESCRIPTION ---
-${jobDescription}
+${jobDescription || "No job description provided. Optimize for high interest and value alignment for the specified target role."}
 
 --- PRESETS & LATEX TEMPLATE MANDATE ---
 Output a single fully-compilable LaTeX file. Use this Roboto style to match the resume exactly:
@@ -642,6 +668,11 @@ You are a senior recruitment director.
 Create a comprehensive, personalized Interview Preparation Pitch and Cheat Sheet in compilable LaTeX using the Roboto sans-serif layout.
 This document helps the candidate master their introduction and high-stakes answers before talking to the client.
 
+--- INPUT VARIABILITY ROBUSTNESS ---
+Note: Either the candidate's resume or the target Job Description may be empty or incomplete:
+- If CANDIDATE RESUME is empty: Construct a general, high-impact 60-second verbal pitch transcript for the specified Target Role and target client, along with standard high-performance STAR stories that are typical for top candidates in this field.
+- If JOB DESCRIPTION is empty: Base all verbal pitch and behavioral STAR outline coaching points purely on the candidate's actual resume history and general industry role expectations.
+
 Candidate Name: ${candidateName || "Candidate"}
 Target Role: ${targetRole || "Target Role"}
 Target Client: ${targetClient || "Target Client"}
@@ -649,10 +680,10 @@ Vendor Partner: ${vendorName || "Staffing Partner"}
 Domain: ${domain}
 
 --- CANDIDATE RESUME ---
-${resume}
+${resume || "No resume provided. Generate a high-quality professional 60s pitch and STAR prep brief for this role."}
 
 --- JOB DESCRIPTION ---
-${jobDescription}
+${jobDescription || "No job description provided. Perform standard high-performance interview elevator pitch and STAR response outlines."}
 
 --- CONTENT REQUIREMENTS ---
 Create three key sections formatted in compilable LaTeX:
