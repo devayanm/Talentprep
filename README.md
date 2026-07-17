@@ -60,3 +60,15 @@ npm run dev
 Open your browser to [http://localhost:3000](http://localhost:3000) to see the app running!
 
 ---
+
+## 📤 How to Export This Project directly to GitHub
+
+This project was built on **Google AI Studio**. You can instantly export it directly to your own personal GitHub account using these built-in steps:
+
+1. **Open AI Studio Settings:** On the AI Studio interface where you are running the applet, look at the top-right corner.
+2. **Select Export:** Click on the settings or export button.
+3. **Choose 'Export to GitHub':** 
+   - Authenticate with your GitHub account when prompted.
+   - Choose whether you want to export to a new private or public repository.
+   - Click **Confirm Export**.
+4. **Done:** AI Studio will instantly push all project files, configuration, and this comprehensive `README.md` to your newly created GitHub repository!

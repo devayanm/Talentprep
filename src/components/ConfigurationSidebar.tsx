@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, AlertTriangle, Upload } from "lucide-react";
+import { Sparkles, AlertTriangle, Upload, User, Briefcase, Cpu, Sliders } from "lucide-react";
 import { SAMPLES, SamplePreset } from "../data/samples";
 
 interface ConfigurationSidebarProps {
@@ -27,6 +27,11 @@ interface ConfigurationSidebarProps {
   apiError: string | null;
   onGenerate: () => void;
   onLoadPreset: (preset: SamplePreset) => void;
+  
+  // Module controls
+  selectedModule: 'screen_prep' | 'resume' | 'cover_letter' | 'pitch';
+  isGeneratingLatex: boolean;
+  onGenerateLatex: (mode: 'resume' | 'cover_letter' | 'pitch') => void;
 }
 
 export default function ConfigurationSidebar({
@@ -54,6 +59,9 @@ export default function ConfigurationSidebar({
   apiError,
   onGenerate,
   onLoadPreset,
+  selectedModule,
+  isGeneratingLatex,
+  onGenerateLatex,
 }: ConfigurationSidebarProps) {
   const sumOfDiffs = basicDiff + intermediateDiff + advancedDiff;
   const isWeightValid = sumOfDiffs === 100;
@@ -196,19 +204,22 @@ export default function ConfigurationSidebar({
   };
 
   return (
-    <section className="lg:col-span-4 border-r border-[#141414] flex flex-col bg-[#E4E3E0] overflow-y-auto max-h-[calc(100vh-3.5rem)] divide-y divide-[#141414] no-print">
+    <section className="lg:col-span-4 border-r border-white/10 flex flex-col bg-slate-950/20 overflow-y-auto max-h-[calc(100vh-4rem)] divide-y divide-white/10 no-print">
       {/* Preset Selector */}
       <div className="p-5">
-        <h2 className="font-serif italic text-xs uppercase tracking-wider opacity-60 mb-3">Load Candidate Profile Preset</h2>
+        <h2 className="text-[11px] font-mono tracking-wider text-slate-400 uppercase mb-3 flex items-center gap-1.5">
+          <Sliders size={13} className="text-orange-400" />
+          <span>Load Candidate Profile Preset</span>
+        </h2>
         <div className="grid grid-cols-2 gap-2">
           {SAMPLES.map((sample, i) => (
             <button
               key={i}
               onClick={() => onLoadPreset(sample)}
-              className="p-3 text-left border border-[#141414] bg-white hover:bg-[#141414] hover:text-[#E4E3E0] transition text-xs flex flex-col justify-between h-20 group text-black cursor-pointer"
+              className="p-3 text-left glass-card glass-card-hover rounded-xl transition flex flex-col justify-between h-20 group text-white cursor-pointer"
             >
-              <span className="font-bold line-clamp-1">{sample.name}</span>
-              <span className="text-[10px] opacity-60 group-hover:opacity-80 font-mono mt-1">
+              <span className="font-sans font-bold text-xs group-hover:text-orange-400 transition-colors line-clamp-1">{sample.name}</span>
+              <span className="text-[10px] text-slate-400 font-mono mt-1">
                 {sample.domain} / {sample.vendor.split(' ')[0]}
               </span>
             </button>
@@ -219,28 +230,31 @@ export default function ConfigurationSidebar({
       {/* Candidate Intake */}
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif italic text-xs uppercase tracking-wider opacity-60">Candidate Intake</h2>
-          <span className="text-[10px] font-mono bg-white px-1.5 py-0.5 border border-[#141414] rounded">STEP 01</span>
+          <h2 className="text-[11px] font-mono tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+            <User size={13} className="text-orange-400" />
+            <span>Candidate Intake</span>
+          </h2>
+          <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 border border-white/10 rounded text-slate-400">STEP 01</span>
         </div>
         
         <div className="space-y-3">
           <div>
-            <label className="block text-[11px] font-mono uppercase mb-1">Candidate Name</label>
+            <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Candidate Name</label>
             <input
               type="text"
               value={candidateName}
               onChange={(e) => setCandidateName(e.target.value)}
               placeholder="e.g. Sarah Jenkins"
-              className="w-full bg-white border border-[#141414] px-3 py-2 text-xs focus:ring-1 focus:ring-[#F27D26] focus:outline-none font-mono text-black"
+              className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none font-sans"
             />
           </div>
 
           <div>
-            <div className="flex justify-between items-baseline mb-1">
-              <label className="block text-[11px] font-mono uppercase">Resume Details</label>
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#F27D26] hover:text-[#141414] cursor-pointer border border-[#F27D26] hover:border-[#141414] px-1.5 py-0.5 rounded bg-white transition flex items-center gap-1">
+            <div className="flex justify-between items-baseline mb-1.5">
+              <label className="block text-[10px] font-mono text-slate-400 uppercase">Resume Details</label>
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-orange-400 hover:text-white cursor-pointer border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
                 <Upload size={10} />
-                <span>Upload PDF / DOCX</span>
+                <span>Upload PDF/DOCX</span>
                 <input
                   type="file"
                   accept=".pdf,.docx,.txt"
@@ -252,14 +266,14 @@ export default function ConfigurationSidebar({
             </div>
             
             {isExtractingResume && (
-              <div className="bg-white border border-[#141414] p-2 text-[10px] font-mono flex items-center gap-2 text-black mb-1 animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-[#F27D26] animate-ping" />
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-2 text-[10px] font-mono flex items-center gap-2 text-orange-300 mb-1.5 animate-pulse">
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-ping" />
                 <span>Extracting Resume Content... Please wait</span>
               </div>
             )}
             
             {uploadErrorResume && (
-              <div className="bg-red-50 border border-red-500 p-2 text-[10px] font-mono text-red-700 flex items-center justify-between mb-1">
+              <div className="bg-rose-500/15 border border-rose-500/30 rounded-lg p-2 text-[10px] font-mono text-rose-300 flex items-center justify-between mb-1.5">
                 <span>Error: {uploadErrorResume}</span>
                 <button onClick={() => setUploadErrorResume(null)} className="font-bold underline ml-1 cursor-pointer">X</button>
               </div>
@@ -269,9 +283,9 @@ export default function ConfigurationSidebar({
               value={resume}
               onChange={(e) => setResume(e.target.value)}
               placeholder="Paste candidate resume text here..."
-              className="w-full bg-white border border-[#141414] p-3 text-xs h-48 font-mono focus:outline-none resize-none text-black"
+              className="w-full glass-input p-3 text-xs h-40 font-mono rounded-lg focus:outline-none resize-none"
             />
-            <span className="text-[10px] opacity-50 block text-right mt-1 font-mono">
+            <span className="text-[10px] text-slate-500 block text-right mt-1 font-mono">
               Characters: {resume.length}
             </span>
           </div>
@@ -281,51 +295,55 @@ export default function ConfigurationSidebar({
       {/* Job Description details */}
       <div className="p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif italic text-xs uppercase tracking-wider opacity-60">Target Job Specs</h2>
-          <span className="text-[10px] font-mono bg-white px-1.5 py-0.5 border border-[#141414] rounded">STEP 02</span>
+          <h2 className="text-[11px] font-mono tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+            <Briefcase size={13} className="text-orange-400" />
+            <span>Target Job Specs</span>
+          </h2>
+          <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 border border-white/10 rounded text-slate-400">STEP 02</span>
         </div>
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-mono uppercase mb-1">Target Role</label>
+              <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Target Role</label>
               <input
                 type="text"
                 value={targetRole}
                 onChange={(e) => setTargetRole(e.target.value)}
                 placeholder="e.g. Sr. Systems Architect"
-                className="w-full bg-white border border-[#141414] px-2.5 py-2 text-xs focus:outline-none font-mono text-black"
+                className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none font-sans"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-mono uppercase mb-1">End Client</label>
+              <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">End Client</label>
               <input
                 type="text"
                 value={targetClient}
                 onChange={(e) => setTargetClient(e.target.value)}
                 placeholder="e.g. UnitedHealth Group"
-                className="w-full bg-white border border-[#141414] px-2.5 py-2 text-xs focus:outline-none font-mono text-black"
+                className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none font-sans"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-mono uppercase mb-1">Vendor</label>
+              <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Vendor</label>
               <input
                 type="text"
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
                 placeholder="e.g. Centraprise"
-                className="w-full bg-white border border-[#141414] px-2.5 py-2 text-xs focus:outline-none font-mono text-black"
+                className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none font-sans"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-mono uppercase mb-1">Business Domain</label>
+              <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Business Domain</label>
               <select
                 value={domain}
                 onChange={(e: any) => setDomain(e.target.value)}
-                className="w-full bg-white border border-[#141414] px-2.5 py-2 text-xs focus:outline-none font-mono h-[34px] text-black"
+                className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none font-sans h-[34px] appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundSize: '1rem', backgroundRepeat: 'no-repeat' }}
               >
                 <option value="Healthcare">Healthcare</option>
                 <option value="Banking">Banking</option>
@@ -338,11 +356,11 @@ export default function ConfigurationSidebar({
           </div>
 
           <div>
-            <div className="flex justify-between items-baseline mb-1">
-              <label className="block text-[11px] font-mono uppercase">Job Description</label>
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#F27D26] hover:text-[#141414] cursor-pointer border border-[#F27D26] hover:border-[#141414] px-1.5 py-0.5 rounded bg-white transition flex items-center gap-1">
+            <div className="flex justify-between items-baseline mb-1.5">
+              <label className="block text-[10px] font-mono text-slate-400 uppercase">Job Description</label>
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-orange-400 hover:text-white cursor-pointer border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 px-2 py-0.5 rounded-lg transition-all flex items-center gap-1">
                 <Upload size={10} />
-                <span>Upload PDF / DOCX</span>
+                <span>Upload PDF/DOCX</span>
                 <input
                   type="file"
                   accept=".pdf,.docx,.txt"
@@ -354,14 +372,14 @@ export default function ConfigurationSidebar({
             </div>
 
             {isExtractingJd && (
-              <div className="bg-white border border-[#141414] p-2 text-[10px] font-mono flex items-center gap-2 text-black mb-1 animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-[#F27D26] animate-ping" />
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-2 text-[10px] font-mono flex items-center gap-2 text-orange-300 mb-1.5 animate-pulse">
+                <div className="w-2 h-2 rounded-full bg-orange-400 animate-ping" />
                 <span>Extracting Job Specs... Please wait</span>
               </div>
             )}
             
             {uploadErrorJd && (
-              <div className="bg-red-50 border border-red-500 p-2 text-[10px] font-mono text-red-700 flex items-center justify-between mb-1">
+              <div className="bg-rose-500/15 border border-rose-500/30 rounded-lg p-2 text-[10px] font-mono text-rose-300 flex items-center justify-between mb-1.5">
                 <span>Error: {uploadErrorJd}</span>
                 <button onClick={() => setUploadErrorJd(null)} className="font-bold underline ml-1 cursor-pointer">X</button>
               </div>
@@ -371,9 +389,9 @@ export default function ConfigurationSidebar({
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
               placeholder="Paste Job Description..."
-              className="w-full bg-white border border-[#141414] p-3 text-xs h-48 font-mono focus:outline-none resize-none text-black"
+              className="w-full glass-input p-3 text-xs h-40 font-mono rounded-lg focus:outline-none resize-none"
             />
-            <span className="text-[10px] opacity-50 block text-right mt-1 font-mono">
+            <span className="text-[10px] text-slate-500 block text-right mt-1 font-mono">
               Characters: {jobDescription.length}
             </span>
           </div>
@@ -381,77 +399,86 @@ export default function ConfigurationSidebar({
       </div>
 
       {/* Difficulty Metrics & Controls */}
-      <div className="p-5 space-y-4">
-        <h2 className="font-serif italic text-xs uppercase tracking-wider opacity-60">Interview Difficulty Distribution</h2>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span>BASIC (20% Target)</span>
-              <span className="font-bold text-[#F27D26]">{basicDiff}%</span>
+      {selectedModule === 'screen_prep' && (
+        <div className="p-5 space-y-4">
+          <h2 className="text-[11px] font-mono tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+            <Briefcase size={13} className="text-orange-400" />
+            <span>Interview Difficulty Distribution</span>
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-xs font-mono mb-1.5">
+                <span className="text-slate-300 text-[11px]">BASIC</span>
+                <span className="font-bold text-orange-400">{basicDiff}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={basicDiff}
+                onChange={(e) => onDiffChange('basic', parseInt(e.target.value))}
+                className="w-full accent-orange-500 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={basicDiff}
-              onChange={(e) => onDiffChange('basic', parseInt(e.target.value))}
-              className="w-full accent-[#141414]"
-            />
-          </div>
 
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span>INTERMEDIATE (50% Target)</span>
-              <span className="font-bold text-[#F27D26]">{intermediateDiff}%</span>
+            <div>
+              <div className="flex justify-between text-xs font-mono mb-1.5">
+                <span className="text-slate-300 text-[11px]">INTERMEDIATE</span>
+                <span className="font-bold text-orange-400">{intermediateDiff}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={intermediateDiff}
+                onChange={(e) => onDiffChange('intermediate', parseInt(e.target.value))}
+                className="w-full accent-orange-500 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={intermediateDiff}
-              onChange={(e) => onDiffChange('intermediate', parseInt(e.target.value))}
-              className="w-full accent-[#141414]"
-            />
-          </div>
 
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span>ADVANCED (30% Target)</span>
-              <span className="font-bold text-[#F27D26]">{advancedDiff}%</span>
+            <div>
+              <div className="flex justify-between text-xs font-mono mb-1.5">
+                <span className="text-slate-300 text-[11px]">ADVANCED</span>
+                <span className="font-bold text-orange-400">{advancedDiff}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={advancedDiff}
+                onChange={(e) => onDiffChange('advanced', parseInt(e.target.value))}
+                className="w-full accent-orange-500 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={advancedDiff}
-              onChange={(e) => onDiffChange('advanced', parseInt(e.target.value))}
-              className="w-full accent-[#141414]"
-            />
-          </div>
 
-          <div className="p-3 bg-white border border-[#141414] text-[11px] font-mono flex items-center justify-between text-black">
-            <span>TOTAL WEIGHT RATIO:</span>
-            <span className={`font-bold ${isWeightValid ? 'text-green-600' : 'text-red-500'}`}>
-              {sumOfDiffs}%
-            </span>
+            <div className="p-3 bg-black/30 border border-white/5 rounded-lg text-xs font-mono flex items-center justify-between text-slate-300">
+              <span>TOTAL WEIGHT RATIO:</span>
+              <span className={`font-bold ${isWeightValid ? 'text-emerald-400' : 'text-rose-400 animate-pulse'}`}>
+                {sumOfDiffs}%
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Gemini AI Engine Settings */}
-      <div className="p-5 space-y-4 border-t border-[#141414]">
+      <div className="p-5 space-y-4 border-t border-white/10">
         <div className="flex items-center justify-between">
-          <h2 className="font-serif italic text-xs uppercase tracking-wider opacity-60">Gemini LLM Settings</h2>
-          <span className="text-[10px] font-mono bg-white px-1.5 py-0.5 border border-[#141414] rounded text-black">OPTION</span>
+          <h2 className="text-[11px] font-mono tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+            <Cpu size={13} className="text-orange-400" />
+            <span>Gemini LLM Settings</span>
+          </h2>
+          <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 border border-white/10 rounded text-slate-400">OPTION</span>
         </div>
         
         <div className="space-y-3 font-mono text-xs">
           <div>
-            <label className="block text-[11px] uppercase mb-1 font-bold text-gray-700">Active Engine Model</label>
+            <label className="block text-[10px] uppercase mb-1.5 font-bold text-slate-400">Active Engine Model</label>
             <select
               value={selectedModelName}
               onChange={(e) => setSelectedModelName(e.target.value)}
-              className="w-full bg-white border border-[#141414] px-2.5 py-2 text-xs focus:ring-1 focus:ring-[#F27D26] focus:outline-none font-mono text-black"
+              className="w-full glass-input px-3 py-2 rounded-lg text-xs focus:outline-none appearance-none h-[34px]"
+              style={{ backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 0.75rem center', backgroundSize: '1rem', backgroundRepeat: 'no-repeat' }}
             >
               <option value="auto">Auto-Fallback Mode (Cascading)</option>
               <option value="gemini-3.5-flash">Gemini 3.5 Flash (Newest / High Demand)</option>
@@ -460,24 +487,24 @@ export default function ConfigurationSidebar({
             </select>
             
             {/* Notice based on current selection */}
-            <div className="mt-2 text-[10px] opacity-75 leading-normal space-y-1">
+            <div className="mt-2.5 text-[10px] text-slate-400 leading-relaxed space-y-1">
               {selectedModelName === 'auto' && (
-                <p className="text-gray-600">
-                  • System automatically tries <strong>3.5 Flash</strong>, fallbacks to <strong>3.1 Flash Lite</strong>, and then <strong>1.5 Flash</strong> if high-demand errors occur.
+                <p>
+                  • System automatically tries <strong className="text-orange-400">3.5 Flash</strong>, fallbacks to <strong className="text-orange-400">3.1 Flash Lite</strong>, and then <strong className="text-orange-400">1.5 Flash</strong> if high-demand errors occur.
                 </p>
               )}
               {selectedModelName === 'gemini-3.5-flash' && (
-                <p className="text-amber-700">
+                <p className="text-orange-300">
                   • Uses the cutting-edge 3.5 Flash model. Note: Spikes in global usage can trigger temporary 503 errors.
                 </p>
               )}
               {selectedModelName === 'gemini-3.1-flash-lite' && (
-                <p className="text-green-700">
+                <p className="text-emerald-300">
                   • Uses the fast, highly available 3.1 Lite model. Perfect for avoiding rate limits or peak-hour congestion.
                 </p>
               )}
               {selectedModelName === 'gemini-flash-latest' && (
-                <p className="text-gray-600">
+                <p className="text-slate-400 font-sans">
                   • Uses standard 1.5 Flash. Reliable execution limits with high response coherence.
                 </p>
               )}
@@ -486,20 +513,20 @@ export default function ConfigurationSidebar({
 
           {/* High visibility alert if there's a rate-limit error */}
           {apiError && (apiError.includes("503") || apiError.includes("429") || apiError.includes("limit") || apiError.includes("demand") || apiError.includes("overloaded") || apiError.includes("Unavailable") || apiError.includes("demand")) && (
-            <div className="bg-amber-100 border-2 border-amber-600 p-3 space-y-1.5 text-[11px] text-amber-950 leading-relaxed font-sans">
-              <div className="flex items-center gap-1.5 font-bold font-mono text-amber-800 text-xs">
-                <AlertTriangle size={14} className="text-amber-700 animate-bounce" />
+            <div className="bg-amber-500/10 border-2 border-amber-500/20 rounded-xl p-3.5 space-y-2 text-[11px] text-amber-200 leading-relaxed font-sans">
+              <div className="flex items-center gap-1.5 font-bold font-mono text-amber-400 text-xs">
+                <AlertTriangle size={14} className="text-amber-400 animate-bounce" />
                 <span>RATE LIMIT / CONGESTION DETECTED</span>
               </div>
               <p>
                 The Gemini API reported heavy traffic load or a rate limit (503/429) for the selected model.
               </p>
-              <p className="font-semibold font-mono text-[10px] uppercase tracking-wide text-amber-800">
+              <p className="font-semibold font-mono text-[10px] uppercase tracking-wide text-amber-400">
                 💡 Recovery Steps:
               </p>
-              <ul className="list-disc pl-4 space-y-1 text-[10px] leading-normal font-mono">
-                <li>Switch model to <strong className="underline text-[#F27D26] hover:text-orange-800 cursor-pointer" onClick={() => setSelectedModelName("gemini-3.1-flash-lite")}>Gemini 3.1 Flash Lite</strong> (Highly Recommended).</li>
-                <li>Or set to <strong className="underline text-[#F27D26] hover:text-orange-800 cursor-pointer" onClick={() => setSelectedModelName("auto")}>Auto-Fallback Mode</strong>.</li>
+              <ul className="list-disc pl-4 space-y-1.5 text-[10px] leading-normal font-mono text-amber-300/95">
+                <li>Switch model to <strong className="underline text-orange-400 hover:text-orange-300 cursor-pointer" onClick={() => setSelectedModelName("gemini-3.1-flash-lite")}>Gemini 3.1 Flash Lite</strong>.</li>
+                <li>Or set to <strong className="underline text-orange-400 hover:text-orange-300 cursor-pointer" onClick={() => setSelectedModelName("auto")}>Auto-Fallback Mode</strong>.</li>
                 <li>Then click <strong>Generate</strong> to retry!</li>
               </ul>
             </div>
@@ -508,18 +535,40 @@ export default function ConfigurationSidebar({
       </div>
 
       {/* Generation Action */}
-      <div className="p-5 bg-white space-y-3 sticky bottom-0 border-t border-[#141414] z-10 shadow-lg">
-        <button
-          onClick={onGenerate}
-          disabled={isGenerating || !isWeightValid}
-          className="w-full bg-[#141414] hover:bg-[#F27D26] disabled:bg-gray-400 disabled:hover:bg-gray-400 text-[#E4E3E0] disabled:text-gray-200 transition font-mono font-bold text-xs uppercase py-3 tracking-wider border border-[#141414] flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Sparkles size={14} className={isGenerating ? "animate-spin" : ""} />
-          {isGenerating ? "Processing Synchronous Intel..." : "Generate Preparation Guide"}
-        </button>
-        <p className="text-[9px] text-center opacity-60 leading-normal font-mono text-gray-500">
-          Creates professional multi-page prep materials with exact question budgets. No answers included.
-        </p>
+      <div className="p-5 bg-slate-950/80 backdrop-blur-md space-y-3 sticky bottom-0 border-t border-white/10 z-10 shadow-2xl">
+        {selectedModule === 'screen_prep' ? (
+          <>
+            <button
+              onClick={onGenerate}
+              disabled={isGenerating || !isWeightValid}
+              className="w-full glass-button-primary disabled:opacity-40 disabled:pointer-events-none text-white transition font-mono font-bold text-xs uppercase py-3.5 rounded-xl tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Sparkles size={14} className={isGenerating ? "animate-spin text-white" : "text-white"} />
+              {isGenerating ? "Processing Synchronous Intel..." : "Generate Preparation Guide"}
+            </button>
+            <p className="text-[9px] text-center text-slate-400 leading-normal font-mono">
+              Creates professional multi-page prep materials with exact question budgets. No answers included.
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => onGenerateLatex(selectedModule as any)}
+              disabled={isGeneratingLatex}
+              className="w-full glass-button-primary disabled:opacity-40 disabled:pointer-events-none text-white transition font-mono font-bold text-xs uppercase py-3.5 rounded-xl tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Sparkles size={14} className={isGeneratingLatex ? "animate-spin text-white" : "text-white"} />
+              {isGeneratingLatex ? "Compiling LaTeX Live..." : `Generate LaTeX ${selectedModule === 'resume' ? 'Resume' : selectedModule === 'cover_letter' ? 'Cover Letter' : 'Briefing'}`}
+            </button>
+            <p className="text-[9px] text-center text-slate-400 leading-normal font-mono">
+              {selectedModule === 'resume' 
+                ? "Re-aligns experience with JD keywords and reformats resume to ATS standards."
+                : selectedModule === 'cover_letter'
+                ? "Compiles matching cover letter addressing target client challenges."
+                : "Builds high-impact elevator pitch transcript and behavioral STAR cheat-sheet."}
+            </p>
+          </>
+        )}
       </div>
     </section>
   );

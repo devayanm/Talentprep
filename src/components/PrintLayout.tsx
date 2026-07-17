@@ -12,6 +12,7 @@ interface PrintLayoutProps {
   intermediateDiff: number;
   advancedDiff: number;
   userProgress: Record<string, { completed: boolean; notes: string }>;
+  visible?: boolean;
 }
 
 export default function PrintLayout({
@@ -25,11 +26,12 @@ export default function PrintLayout({
   intermediateDiff,
   advancedDiff,
   userProgress,
+  visible = false,
 }: PrintLayoutProps) {
   if (!parsedBank) return null;
 
   return (
-    <div className="hidden print:block bg-white text-black p-4 font-sans max-w-4xl mx-auto space-y-5">
+    <div className={`${visible ? "block" : "hidden print:block"} bg-white text-black p-4 font-sans max-w-4xl mx-auto space-y-5`}>
       {/* Top Header Information Block */}
       <div className="border border-[#141414] p-5 space-y-4 bg-gray-50/50">
         <div className="space-y-1">
@@ -71,7 +73,7 @@ export default function PrintLayout({
       {/* Continuous Questions Flow */}
       <div className="space-y-5">
         {parsedBank.sections.map((section) => (
-          <div key={section.id} className="space-y-3">
+          <div key={section.id} className="space-y-3 animate-fade-in">
             {/* Section Header */}
             <div className="border-b border-[#141414] pb-1 flex items-baseline justify-between mt-3">
               <h2 className="text-sm font-extrabold uppercase tracking-wider font-mono text-[#F27D26]">
@@ -107,3 +109,4 @@ export default function PrintLayout({
     </div>
   );
 }
+

@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Printer, RotateCcw, Search, X, AlertCircle } from "lucide-react";
 import { SAMPLES, SamplePreset } from "./data/samples";
-import { QuestionBank, GenerationConfig, QuestionSection, Question } from "./types";
+import { QuestionBank, GenerationConfig } from "./types";
+import { Sparkles } from "lucide-react";
 
-// Import restructured modular components
+// Import core utility libraries
+import { parseMarkdownToQuestionBank } from "./lib/parser";
+import { downloadMarkdown, downloadHtml } from "./lib/exporter";
+
+// Import modular sub-components
 import Header from "./components/Header";
 import Toast from "./components/Toast";
 import ResetModal from "./components/ResetModal";
@@ -12,6 +16,22 @@ import ConfigurationSidebar from "./components/ConfigurationSidebar";
 import StatusBoard from "./components/StatusBoard";
 import QuestionBankViewer from "./components/QuestionBankViewer";
 import PrintLayout from "./components/PrintLayout";
+import MetricsDashboard from "./components/MetricsDashboard";
+import ResultsHeader from "./components/ResultsHeader";
+import NavigationTabs from "./components/NavigationTabs";
+import Footer from "./components/Footer";
+import LatexWorkspace from "./components/LatexWorkspace";
+import LandingPage from "./components/LandingPage";
+
+function AutoPrintTrigger() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.print();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+  return null;
+}
 
 export default function App() {
   // Input states
@@ -40,6 +60,16 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
   
+  // Custom Modules State (Dashboard + LaTeX Workspace)
+  const [viewPage, setViewPage] = useState<'home' | 'workspace'>('home');
+  const [selectedModule, setSelectedModule] = useState<'screen_prep' | 'resume' | 'cover_letter' | 'pitch'>('screen_prep');
+  const [resumeLatex, setResumeLatex] = useState<string>('');
+  const [coverLetterLatex, setCoverLetterLatex] = useState<string>('');
+  const [pitchLatex, setPitchLatex] = useState<string>('');
+  const [targetPages, setTargetPages] = useState<string>('flexible');
+  const [isGeneratingLatex, setIsGeneratingLatex] = useState<boolean>(false);
+  const [latexModelUsed, setLatexModelUsed] = useState<string | null>(null);
+  
   // Model state selections
   const [selectedModelName, setSelectedModelName] = useState<string>('auto');
   const [activeModelUsed, setActiveModelUsed] = useState<string | null>(null);
@@ -52,6 +82,52 @@ export default function App() {
     }, 4000);
   };
   
+  const [isPrintRoute, setIsPrintRoute] = useState(false);
+
+  // Parse print query parameter and load cached data
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("print") === "true") {
+      setIsPrintRoute(true);
+      
+      const cachedCandidateName = localStorage.getItem("talent_prep_candidateName");
+      if (cachedCandidateName !== null) setCandidateName(cachedCandidateName);
+      
+      const cachedTargetRole = localStorage.getItem("talent_prep_targetRole");
+      if (cachedTargetRole !== null) setTargetRole(cachedTargetRole);
+      
+      const cachedTargetClient = localStorage.getItem("talent_prep_targetClient");
+      if (cachedTargetClient !== null) setTargetClient(cachedTargetClient);
+      
+      const cachedVendorName = localStorage.getItem("talent_prep_vendorName");
+      if (cachedVendorName !== null) setVendorName(cachedVendorName);
+      
+      const cachedDomain = localStorage.getItem("talent_prep_domain");
+      if (cachedDomain !== null) setDomain(cachedDomain as any);
+      
+      const cachedBasicDiff = localStorage.getItem("talent_prep_basicDiff");
+      if (cachedBasicDiff !== null) setBasicDiff(Number(cachedBasicDiff));
+      
+      const cachedIntermediateDiff = localStorage.getItem("talent_prep_intermediateDiff");
+      if (cachedIntermediateDiff !== null) setIntermediateDiff(Number(cachedIntermediateDiff));
+      
+      const cachedAdvancedDiff = localStorage.getItem("talent_prep_advancedDiff");
+      if (cachedAdvancedDiff !== null) setAdvancedDiff(Number(cachedAdvancedDiff));
+      
+      const cachedRawMarkdown = localStorage.getItem("talent_prep_rawMarkdown");
+      if (cachedRawMarkdown !== null) setRawMarkdown(cachedRawMarkdown);
+      
+      const cachedUserProgress = localStorage.getItem("talent_prep_userProgress");
+      if (cachedUserProgress !== null) {
+        try {
+          setUserProgress(JSON.parse(cachedUserProgress));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
+
   // Generated content states
   const [rawMarkdown, setRawMarkdown] = useState<string>('');
   const [parsedBank, setParsedBank] = useState<QuestionBank | null>(null);
@@ -93,14 +169,14 @@ export default function App() {
       if (isGenerating) {
         return 'active';
       }
-      return 'completed'; // Generation stopped and this is either section 8 or the last parsed section
+      return 'completed'; 
     }
     
     if (isGenerating) {
       if (secNum === 1) return 'active';
       const prevHeaderRegex = new RegExp(`##\\s+Section\\s+${secNum - 1}\\b`, "i");
       if (prevHeaderRegex.test(rawMarkdown)) {
-        return 'active'; // previous section exists, so this is up next or being actively parsed
+        return 'active'; 
       }
     }
     return 'pending';
@@ -137,7 +213,6 @@ export default function App() {
     const value = Math.max(0, Math.min(100, val));
     if (type === 'basic') {
       setBasicDiff(value);
-      // Adjust intermediate & advanced proportionately
       const remaining = 100 - value;
       const currentSum = intermediateDiff + advancedDiff;
       if (currentSum > 0) {
@@ -217,7 +292,7 @@ export default function App() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep the last partial line in buffer
+        buffer = lines.pop() || ""; 
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -234,10 +309,7 @@ export default function App() {
                 setActiveModelUsed(parsed.model);
               }
               if (parsed.text) {
-                setRawMarkdown(prev => {
-                  const updated = prev + parsed.text;
-                  return updated;
-                });
+                setRawMarkdown(prev => prev + parsed.text);
               }
             } catch (err) {
               console.warn("Error parsing chunk:", err, dataStr);
@@ -253,64 +325,115 @@ export default function App() {
     }
   };
 
+  // Helper to trigger LaTeX compilation/generation (Resume, Cover Letter, or Pitch)
+  const handleGenerateLatex = async (mode: 'resume' | 'cover_letter' | 'pitch') => {
+    setIsGeneratingLatex(true);
+    setApiError(null);
+    setLatexModelUsed(null);
+    
+    let endpoint = "";
+    if (mode === 'resume') {
+      endpoint = "/api/generate-resume-latex";
+      setResumeLatex("");
+    } else if (mode === 'cover_letter') {
+      endpoint = "/api/generate-cover-letter-latex";
+      setCoverLetterLatex("");
+    } else {
+      endpoint = "/api/generate-pitch-latex";
+      setPitchLatex("");
+    }
+
+    const config = {
+      candidateName,
+      targetRole,
+      targetClient,
+      vendorName,
+      domain,
+    };
+
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          resume, 
+          jobDescription, 
+          config, 
+          targetPages,
+          preferredModel: selectedModelName 
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server returned ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body reader available.");
+
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; 
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") {
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.model) {
+                setLatexModelUsed(parsed.model);
+              }
+              if (parsed.text) {
+                if (mode === 'resume') {
+                  setResumeLatex(prev => prev + parsed.text);
+                } else if (mode === 'cover_letter') {
+                  setCoverLetterLatex(prev => prev + parsed.text);
+                } else {
+                  setPitchLatex(prev => prev + parsed.text);
+                }
+              }
+            } catch (err) {
+              console.warn("Error parsing chunk:", err, dataStr);
+            }
+          }
+        }
+      }
+      triggerToast(`✓ LaTeX ${mode === 'resume' ? 'Resume' : mode === 'cover_letter' ? 'Cover Letter' : 'Briefing'} compiled successfully!`);
+    } catch (err: any) {
+      console.error(err);
+      setApiError(err.message || `Failed to generate LaTeX ${mode}. Please verify your network connection.`);
+      triggerToast(`Error compiling LaTeX ${mode}.`);
+    } finally {
+      setIsGeneratingLatex(false);
+    }
+  };
+
   // Parse Markdown into structured sections when generation finishes
   useEffect(() => {
     if (!rawMarkdown) return;
-
-    // Quick regexes to extract metadata if specified at the top
-    const roleMatch = rawMarkdown.match(/ROLE:\s*(.*)/i);
-    const clientMatch = rawMarkdown.match(/CLIENT:\s*(.*)/i);
-    const vendorMatch = rawMarkdown.match(/VENDOR:\s*(.*)/i);
-    const prepForMatch = rawMarkdown.match(/PREPARED_FOR:\s*(.*)/i);
-
-    const sections: QuestionSection[] = [];
-    
-    // Split the markdown by standard headings like "## Section" or "### Section"
-    // We search for line starting with ## Section
-    const sectionBlocks = rawMarkdown.split(/(?=^##\s+Section\s+\d+)/mi);
-
-    let secIdCounter = 1;
-    let questionIdCounter = 1;
-
-    sectionBlocks.forEach((block) => {
-      const headerLineMatch = block.match(/^##\s+(Section\s+\d+:\s*.*)$/m);
-      if (!headerLineMatch) return;
-
-      const title = headerLineMatch[1].trim();
-      const questions: Question[] = [];
-
-      // Extract lines that look like: 1. Question text or 1) Question text
-      // But avoid capturing other normal markdown sentences if possible.
-      // We look for list elements.
-      const lines = block.split("\n");
-      lines.forEach((line) => {
-        const qMatch = line.match(/^\s*(\d+)[\.\)]\s*(.*)$/);
-        if (qMatch) {
-          questions.push({
-            id: questionIdCounter++,
-            text: qMatch[2].trim(),
-          });
-        }
-      });
-
-      if (title || questions.length > 0) {
-        sections.push({
-          id: secIdCounter++,
-          title: title,
-          questions: questions,
-        });
-      }
-    });
-
-    setParsedBank({
-      role: roleMatch ? roleMatch[1].trim() : targetRole,
-      client: clientMatch ? clientMatch[1].trim() : targetClient,
-      vendor: vendorMatch ? vendorMatch[1].trim() : vendorName,
-      preparedFor: prepForMatch ? prepForMatch[1].trim() : candidateName,
-      sections,
+    const parsed = parseMarkdownToQuestionBank(
       rawMarkdown,
-    });
-  }, [rawMarkdown]);
+      targetRole,
+      targetClient,
+      vendorName,
+      candidateName
+    );
+    setParsedBank(parsed);
+  }, [rawMarkdown, targetRole, targetClient, vendorName, candidateName]);
 
   // Track progress calculations
   const totalQuestionsCount = parsedBank?.sections.reduce((acc, s) => acc + s.questions.length, 0) || 0;
@@ -350,244 +473,95 @@ export default function App() {
     triggerToast("Study progress and preparation notes successfully reset.");
   };
 
-  // Download clean Markdown
-  const downloadMarkdown = () => {
-    const element = document.createElement("a");
-    const file = new Blob([rawMarkdown], { type: 'text/markdown' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${candidateName.replace(/\s+/g, '_')}_interview_prep_guide.md`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  // Export handlers mapped from external libraries
+  const handleDownloadMarkdown = () => {
+    downloadMarkdown(rawMarkdown, candidateName);
     triggerToast("Markdown document downloaded successfully!");
   };
 
-  // Download high-density styled HTML file that launches standard browser print on open!
-  const downloadHtml = () => {
-    const htmlStyles = `
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
-      
-      body {
-        font-family: "Inter", sans-serif;
-        background-color: white;
-        color: #141414;
-        margin: 2rem;
-        line-height: 1.5;
-        font-size: 10.5pt;
-      }
-      
-      .info-card {
-        border: 1px solid #141414;
-        padding: 1.5rem;
-        background-color: #faf9f8;
-        margin-bottom: 2rem;
-      }
-      
-      .info-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-b: 1px solid #141414;
-        padding-bottom: 0.5rem;
-        margin-bottom: 1rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.75rem;
-        color: #555;
-        text-transform: uppercase;
-        border-bottom: 1px solid #141414;
-      }
-      
-      .title-main {
-        font-size: 1.8rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: -0.03em;
-        margin: 0;
-        line-height: 1.1;
-      }
-      
-      .subtitle-main {
-        font-size: 0.9rem;
-        margin-top: 0.4rem;
-        margin-bottom: 0;
-        color: #666;
-        text-transform: uppercase;
-        font-family: "JetBrains Mono", monospace;
-      }
-      
-      .metadata-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.8rem;
-        border-top: 1px dashed #ccc;
-        padding-top: 1rem;
-        margin-top: 1rem;
-      }
-
-      .metadata-item {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .metadata-label {
-        font-size: 0.65rem;
-        color: #777;
-        font-weight: bold;
-        text-transform: uppercase;
-        margin-bottom: 0.15rem;
-      }
-
-      .metadata-value {
-        font-weight: bold;
-        font-size: 0.85rem;
-      }
-
-      .metadata-full {
-        grid-column: span 2;
-      }
-      
-      .section-header {
-        border-bottom: 1px solid #141414;
-        padding-bottom: 0.25rem;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        font-size: 1.1rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        color: #F27D26;
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-      }
-      
-      .section-header-title {
-        font-family: "Inter", sans-serif;
-      }
-
-      .section-header-budget {
-        font-size: 0.75rem;
-        font-family: "JetBrains Mono", monospace;
-        color: #666;
-        font-weight: normal;
-        text-transform: uppercase;
-      }
-      
-      .question-block {
-        margin-bottom: 1rem;
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-      
-      .question-text {
-        font-weight: 500;
-        margin-bottom: 0.35rem;
-        font-family: "JetBrains Mono", monospace;
-        font-size: 0.85rem;
-        line-height: 1.4;
-      }
-      
-      .notes-block {
-        background-color: #f7f6f5;
-        border-left: 2px solid #777;
-        padding: 0.5rem 1rem;
-        margin-top: 0.35rem;
-        font-size: 0.8rem;
-        font-style: italic;
-        color: #555;
-        font-family: "JetBrains Mono", monospace;
-      }
-    `;
-
-    const sectionsHtml = parsedBank?.sections.map(sec => `
-      <div class="section-header">
-        <div class="section-header-title">${sec.title}</div>
-        <span class="section-header-budget">Budget: ${sec.questions.length} Questions</span>
-      </div>
-      <div>
-        ${sec.questions.map(q => {
-          const state = userProgress[q.id] || { completed: false, notes: '' };
-          return `
-            <div class="question-block">
-              <div class="question-text"><strong>${q.id}.</strong> ${q.text}</div>
-              ${state.notes ? `<div class="notes-block"><strong>My Notes:</strong> ${state.notes}</div>` : ''}
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `).join('') || '';
-
-    const fullHtml = `
-      <!doctype html>
-      <html>
-        <head>
-          <title>${candidateName} - Interview Preparation Guide</title>
-          <style>${htmlStyles}</style>
-        </head>
-        <body>
-          <div class="info-card">
-            <h1 class="title-main">
-              Interview Preparation Kit
-            </h1>
-            <p class="subtitle-main">
-              Technical & Scenario-Based Interview Question Bank
-            </p>
-            
-            <div class="metadata-grid">
-              <div class="metadata-item">
-                <span class="metadata-label">PREPARED FOR (CANDIDATE)</span>
-                <span class="metadata-value">${candidateName}</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">TARGET ROLE & DOMAIN</span>
-                <span class="metadata-value">${targetRole} (${domain} Domain)</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">CLIENT</span>
-                <span class="metadata-value">${targetClient || "Direct Client"}</span>
-              </div>
-              <div class="metadata-item">
-                <span class="metadata-label">VENDOR</span>
-                <span class="metadata-value">${vendorName || "Vendor Partner"}</span>
-              </div>
-              <div class="metadata-item metadata-full">
-                <span class="metadata-label">INTERVIEW METRICS & DIFFICULTY DISTRIBUTION</span>
-                <span class="metadata-value">${basicDiff}% Basic / ${intermediateDiff}% Intermediate / ${advancedDiff}% Advanced (B/I/A Ratio)</span>
-              </div>
-            </div>
-          </div>
-          
-          ${sectionsHtml}
-          
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 500);
-            }
-          </script>
-        </body>
-      </html>
-    `;
-
-    const element = document.createElement("a");
-    const file = new Blob([fullHtml], { type: 'text/html' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${candidateName.replace(/\s+/g, '_')}_interview_prep_guide.html`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  const handleDownloadHtml = () => {
+    downloadHtml({
+      parsedBank,
+      candidateName,
+      targetRole,
+      targetClient,
+      vendorName,
+      domain,
+      basicDiff,
+      intermediateDiff,
+      advancedDiff,
+      userProgress,
+    });
     triggerToast("HTML printable document downloaded! Open it to print directly.");
   };
 
   // Print preparation document
   const triggerPrint = () => {
+    localStorage.setItem("talent_prep_candidateName", candidateName);
+    localStorage.setItem("talent_prep_targetRole", targetRole);
+    localStorage.setItem("talent_prep_targetClient", targetClient);
+    localStorage.setItem("talent_prep_vendorName", vendorName);
+    localStorage.setItem("talent_prep_domain", domain);
+    localStorage.setItem("talent_prep_basicDiff", String(basicDiff));
+    localStorage.setItem("talent_prep_intermediateDiff", String(intermediateDiff));
+    localStorage.setItem("talent_prep_advancedDiff", String(advancedDiff));
+    localStorage.setItem("talent_prep_rawMarkdown", rawMarkdown);
+    localStorage.setItem("talent_prep_userProgress", JSON.stringify(userProgress));
+
     setShowPrintModal(true);
   };
 
+  if (isPrintRoute) {
+    return (
+      <div className="min-h-screen bg-slate-100 text-black py-8 px-4 font-sans select-none no-print-bg">
+        <div className="max-w-4xl mx-auto mb-6 bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm no-print">
+          <div>
+            <h2 className="text-sm font-bold font-mono text-slate-800">PRINT PREVIEW PORTAL</h2>
+            <p className="text-[10px] text-slate-500 font-mono mt-0.5">Prepare to save/print. Ensure "Background graphics" is enabled in printer settings.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white text-xs font-mono font-bold rounded-lg shadow-sm cursor-pointer"
+            >
+              Print / Save as PDF
+            </button>
+            <button
+              onClick={() => window.close()}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-mono font-bold border border-slate-200 rounded-lg cursor-pointer"
+            >
+              Close Tab
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white text-black p-8 shadow-sm rounded-2xl border border-slate-200 print:border-none print:shadow-none print:p-0 max-w-4xl mx-auto">
+          <PrintLayout
+            parsedBank={parsedBank}
+            vendorName={vendorName}
+            candidateName={candidateName}
+            targetClient={targetClient}
+            targetRole={targetRole}
+            domain={domain}
+            basicDiff={basicDiff}
+            intermediateDiff={intermediateDiff}
+            advancedDiff={advancedDiff}
+            userProgress={userProgress}
+            visible={true}
+          />
+        </div>
+
+        <AutoPrintTrigger />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans flex flex-col selection:bg-[#141414] selection:text-[#E4E3E0]">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col selection:bg-orange-500 selection:text-white relative overflow-hidden">
+      {/* Background radial glowing light blobs */}
+      <div className="absolute w-[450px] h-[450px] bg-orange-500/10 rounded-full blur-[100px] -top-20 -left-20 pointer-events-none"></div>
+      <div className="absolute w-[450px] h-[450px] bg-pink-500/5 rounded-full blur-[120px] -bottom-20 -right-20 pointer-events-none"></div>
+
       {/* Toast Notification */}
       <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
 
@@ -603,206 +577,243 @@ export default function App() {
         isOpen={showPrintModal} 
         onClose={() => setShowPrintModal(false)} 
         appUrl={appUrl} 
-        onDownloadHtml={downloadHtml} 
-        onDownloadMarkdown={downloadMarkdown} 
+        onDownloadHtml={handleDownloadHtml} 
+        onDownloadMarkdown={handleDownloadMarkdown} 
       />
 
-      {/* HEADER BAR (Theme styled) */}
-      <Header hasApiKey={hasApiKey} />
+      {/* HEADER BAR */}
+      <Header 
+        hasApiKey={hasApiKey} 
+        viewPage={viewPage} 
+        onGoHome={() => setViewPage('home')} 
+      />
 
-      {/* MAIN CONTAINER */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0 no-print">
-        {/* LEFT SIDEBAR: INPUT CONTROLS (Col-span-4) */}
-        <ConfigurationSidebar
-          resume={resume}
-          setResume={setResume}
-          jobDescription={jobDescription}
-          setJobDescription={setJobDescription}
-          candidateName={candidateName}
-          setCandidateName={setCandidateName}
-          targetRole={targetRole}
-          setTargetRole={setTargetRole}
-          targetClient={targetClient}
-          setTargetClient={setTargetClient}
-          vendorName={vendorName}
-          setVendorName={setVendorName}
-          domain={domain}
-          setDomain={setDomain}
-          basicDiff={basicDiff}
-          intermediateDiff={intermediateDiff}
-          advancedDiff={advancedDiff}
-          onDiffChange={handleDiffChange}
-          selectedModelName={selectedModelName}
-          setSelectedModelName={setSelectedModelName}
-          isGenerating={isGenerating}
-          apiError={apiError}
-          onGenerate={handleGenerate}
-          onLoadPreset={handleLoadPreset}
+      {viewPage === 'home' ? (
+        <LandingPage 
+          onSelectModule={(module) => {
+            setSelectedModule(module);
+            setViewPage('workspace');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }} 
+          hasApiKey={hasApiKey} 
         />
+      ) : (
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0 no-print z-10">
+          {/* LEFT SIDEBAR: INPUT CONTROLS */}
+          <ConfigurationSidebar
+            resume={resume}
+            setResume={setResume}
+            jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
+            candidateName={candidateName}
+            setCandidateName={setCandidateName}
+            targetRole={targetRole}
+            setTargetRole={setTargetRole}
+            targetClient={targetClient}
+            setTargetClient={setTargetClient}
+            vendorName={vendorName}
+            setVendorName={setVendorName}
+            domain={domain}
+            setDomain={setDomain}
+            basicDiff={basicDiff}
+            intermediateDiff={intermediateDiff}
+            advancedDiff={advancedDiff}
+            onDiffChange={handleDiffChange}
+            selectedModelName={selectedModelName}
+            setSelectedModelName={setSelectedModelName}
+            isGenerating={isGenerating}
+            apiError={apiError}
+            onGenerate={handleGenerate}
+            onLoadPreset={handleLoadPreset}
+            selectedModule={selectedModule}
+            isGeneratingLatex={isGeneratingLatex}
+            onGenerateLatex={handleGenerateLatex}
+          />
 
-        {/* RIGHT AREA: RESULTS VIEWER (Col-span-8) */}
-        <section className="lg:col-span-8 flex flex-col bg-white overflow-y-auto max-h-[calc(100vh-3.5rem)] relative text-black">
-          
-          {/* Header Panel for Generated Content */}
-          <div className="bg-[#E4E3E0] p-6 border-b border-[#141414] flex flex-col gap-4 text-black">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <span className="font-serif italic text-xs uppercase tracking-wider opacity-50 block text-black">Intelligence Analysis Results</span>
-                <h1 className="text-xl font-extrabold tracking-tight uppercase text-black">
-                  {candidateName ? `${candidateName} Prep Bank` : "Candidate Interview Intel"}
-                </h1>
-                <p className="text-xs opacity-70 mt-1 font-mono text-black">
-                  Target: {targetRole || "Senior Role"} at {targetClient || "Direct Client"} ({domain} Domain)
-                </p>
-                {activeModelUsed && (
-                  <div className="inline-flex items-center gap-1.5 mt-2 bg-white px-2 py-1 border border-[#141414] text-[10px] font-mono uppercase tracking-wide text-black">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
-                    <span>Processed via: <strong>{activeModelUsed}</strong></span>
-                  </div>
-                )}
+          {/* RIGHT AREA: RESULTS VIEWER */}
+          <section className="lg:col-span-8 flex flex-col bg-slate-900/10 overflow-y-auto max-h-[calc(100vh-4rem)] relative text-white border-l border-white/5">
+            
+            {/* MODULE SELECTOR TABS */}
+            <div className="bg-slate-950/90 border-b border-white/10 px-6 py-3.5 sticky top-0 z-20 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 overflow-x-auto max-w-full">
+                <button
+                  onClick={() => setSelectedModule('screen_prep')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedModule === 'screen_prep' 
+                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  📋 Screen Prep Bank
+                </button>
+                
+                <button
+                  onClick={() => setSelectedModule('resume')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedModule === 'resume' 
+                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  📄 ATS LaTeX Resume
+                </button>
+                
+                <button
+                  onClick={() => setSelectedModule('cover_letter')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedModule === 'cover_letter' 
+                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  ✉️ LaTeX Cover Letter
+                </button>
+                
+                <button
+                  onClick={() => setSelectedModule('pitch')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedModule === 'pitch' 
+                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  ⚡ Pitch & Cheat-Sheet
+                </button>
               </div>
 
-              {/* Top Controls: Print & Toggle */}
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                {rawMarkdown && (
-                  <>
-                    <button
-                      onClick={triggerPrint}
-                      className="px-3.5 py-2 border border-[#141414] bg-white text-xs font-mono font-bold hover:bg-[#141414] hover:text-[#E4E3E0] transition flex items-center gap-1.5 cursor-pointer text-black"
-                    >
-                      <Printer size={13} />
-                      Print / PDF
-                    </button>
-                    <button
-                      onClick={resetProgress}
-                      title="Reset Study Progress"
-                      className="p-2 border border-[#141414] bg-white text-xs hover:bg-[#141414] hover:text-[#E4E3E0] transition flex items-center cursor-pointer text-black"
-                    >
-                      <RotateCcw size={13} />
-                    </button>
-                  </>
-                )}
-              </div>
+              {selectedModule !== 'screen_prep' && (
+                <button
+                  onClick={() => handleGenerateLatex(selectedModule)}
+                  disabled={isGeneratingLatex}
+                  className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-xs font-mono font-black rounded-xl cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_2px_10px_rgba(242,125,38,0.25)] transition-all hover:-translate-y-0.5 text-white active:translate-y-0"
+                >
+                  {isGeneratingLatex ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
+                      <span>Compiling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} className="text-white animate-pulse" />
+                      <span>Compile LaTeX</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {/* Metrics Dashboard */}
-            {rawMarkdown && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-4 border border-[#141414] text-black">
-                <div>
-                  <div className="text-xs font-serif italic opacity-50 text-black">Total Questions</div>
-                  <div className="text-xl font-extrabold font-mono mt-0.5 text-black">
-                    {totalQuestionsCount || "Counting..."}
-                  </div>
+            {selectedModule === 'screen_prep' ? (
+              <>
+                {/* Header Panel for Generated Content */}
+                <ResultsHeader
+                  candidateName={candidateName}
+                  targetRole={targetRole}
+                  targetClient={targetClient}
+                  domain={domain}
+                  activeModelUsed={activeModelUsed}
+                  rawMarkdown={rawMarkdown}
+                  triggerPrint={triggerPrint}
+                  resetProgress={resetProgress}
+                />
+
+                {/* Metrics Dashboard */}
+                <div className="bg-slate-900/30 px-6 pb-4 pt-4 border-b border-white/5 backdrop-blur-md">
+                  <MetricsDashboard
+                    rawMarkdown={rawMarkdown}
+                    totalQuestionsCount={totalQuestionsCount}
+                    completedQuestionsCount={completedQuestionsCount}
+                    completionPercentage={completionPercentage}
+                    vendorName={vendorName}
+                    domain={domain}
+                  />
                 </div>
-                <div>
-                  <div className="text-xs font-serif italic opacity-50 text-black">Study Progress</div>
-                  <div className="text-xl font-extrabold font-mono text-[#F27D26] mt-0.5">
-                    {completedQuestionsCount} / {totalQuestionsCount} ({completionPercentage}%)
-                  </div>
+
+                {/* Custom Interactive Tabs & Search bar */}
+                <NavigationTabs
+                  rawMarkdown={rawMarkdown}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                />
+
+                {/* Question Viewer Canvas */}
+                <div className="p-6 flex-1 bg-slate-950/10 text-white">
+                  {/* Realtime Synchronizer Status Board */}
+                  <StatusBoard
+                    rawMarkdown={rawMarkdown}
+                    isGenerating={isGenerating}
+                    activeModelUsed={activeModelUsed}
+                    getSectionStatus={getSectionStatus}
+                    setSelectedModelName={setSelectedModelName}
+                  />
+
+                  {/* QuestionBankViewer */}
+                  <QuestionBankViewer
+                    parsedBank={parsedBank}
+                    searchQuery={searchQuery}
+                    userProgress={userProgress}
+                    toggleCompleted={toggleCompleted}
+                    updateNotes={updateNotes}
+                    activeTab={activeTab}
+                    rawMarkdown={rawMarkdown}
+                    isGenerating={isGenerating}
+                    terminalEndRef={terminalEndRef}
+                    triggerToast={triggerToast}
+                    setSelectedModelName={setSelectedModelName}
+                  />
                 </div>
-                <div>
-                  <div className="text-xs font-serif italic opacity-50 text-black">Assumed Agency</div>
-                  <div className="text-xs font-bold font-mono truncate mt-1 text-black">
-                    {vendorName || "Centraprise"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-serif italic opacity-50 text-black">Assigned Domain</div>
-                  <div className="text-xs font-bold font-mono mt-1 text-black">
-                    {domain} Compliance
-                  </div>
-                </div>
+              </>
+            ) : selectedModule === 'resume' ? (
+              <div className="p-6 flex-1 flex flex-col min-h-0">
+                <LatexWorkspace
+                  latexCode={resumeLatex}
+                  setLatexCode={setResumeLatex}
+                  isGenerating={isGeneratingLatex}
+                  onGenerate={() => handleGenerateLatex('resume')}
+                  title="ATS LaTeX Resume Reformatter"
+                  subtitle="Re-aligns accomplishments with Job Description keywords and reformats to ATS standards."
+                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_resume.tex`}
+                  type="resume"
+                  targetPages={targetPages}
+                  setTargetPages={setTargetPages}
+                  activeModelUsed={latexModelUsed}
+                />
+              </div>
+            ) : selectedModule === 'cover_letter' ? (
+              <div className="p-6 flex-1 flex flex-col min-h-0">
+                <LatexWorkspace
+                  latexCode={coverLetterLatex}
+                  setLatexCode={setCoverLetterLatex}
+                  isGenerating={isGeneratingLatex}
+                  onGenerate={() => handleGenerateLatex('cover_letter')}
+                  title="LaTeX Cover Letter Builder"
+                  subtitle="Crafts a highly personalized executive narrative addressing target client pain points."
+                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_cover_letter.tex`}
+                  type="cover_letter"
+                  activeModelUsed={latexModelUsed}
+                />
+              </div>
+            ) : (
+              <div className="p-6 flex-1 flex flex-col min-h-0">
+                <LatexWorkspace
+                  latexCode={pitchLatex}
+                  setLatexCode={setPitchLatex}
+                  isGenerating={isGeneratingLatex}
+                  onGenerate={() => handleGenerateLatex('pitch')}
+                  title="60s Elevator Pitch & STAR Briefing"
+                  subtitle="Verbal elevator pitch introduction transcript plus STAR behavioral story structures."
+                  fileName={`${candidateName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_interview_brief.tex`}
+                  type="pitch"
+                  activeModelUsed={latexModelUsed}
+                />
               </div>
             )}
+          </section>
+        </main>
+      )}
 
-            {/* Custom Interactive Tabs & Search */}
-            {rawMarkdown && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 text-black">
-                <div className="flex border border-[#141414] overflow-hidden bg-white text-xs font-mono self-start text-black">
-                  <button
-                    onClick={() => setActiveTab('interactive')}
-                    className={`px-4 py-1.5 border-r border-[#141414] transition cursor-pointer font-bold ${activeTab === 'interactive' ? 'bg-[#141414] text-[#E4E3E0]' : 'hover:bg-gray-100 text-black'}`}
-                  >
-                    Interactive Guide & Tracker
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('markdown')}
-                    className={`px-4 py-1.5 transition cursor-pointer font-bold ${activeTab === 'markdown' ? 'bg-[#141414] text-[#E4E3E0]' : 'hover:bg-gray-100 text-black'}`}
-                  >
-                    Raw Document (Markdown)
-                  </button>
-                </div>
-
-                {activeTab === 'interactive' && (
-                  <div className="relative flex-1 max-w-xs self-stretch sm:self-auto text-black">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50 text-black" />
-                    <input
-                      type="text"
-                      placeholder="Search questions..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-white border border-[#141414] pl-8 pr-7 py-1 text-xs focus:outline-none font-mono text-black"
-                    />
-                    {searchQuery && (
-                      <button 
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 text-black"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Question Viewer Canvas */}
-          <div className="p-6 flex-1 bg-white text-black">
-            {/* If there is API Error */}
-            {apiError && (
-              <div className="border border-red-500 bg-red-50 p-4 mb-6">
-                <div className="flex items-center gap-2 text-red-700 font-bold text-sm mb-1">
-                  <AlertCircle size={16} />
-                  <span>Intelligence Generation Failure</span>
-                </div>
-                <p className="text-xs text-red-600 font-mono leading-relaxed">
-                  {apiError}
-                </p>
-                <p className="text-[11px] text-red-500 font-mono mt-2">
-                  Tip: Ensure your server is active and the Google Gemini API key is correctly configured. You can modify keys in the "Settings" tab in AI Studio.
-                </p>
-              </div>
-            )}
-
-            {/* Realtime Synchronizer Status Board */}
-            <StatusBoard
-              rawMarkdown={rawMarkdown}
-              isGenerating={isGenerating}
-              activeModelUsed={activeModelUsed}
-              getSectionStatus={getSectionStatus}
-              setSelectedModelName={setSelectedModelName}
-            />
-
-            {/* QuestionBankViewer */}
-            <QuestionBankViewer
-              parsedBank={parsedBank}
-              searchQuery={searchQuery}
-              userProgress={userProgress}
-              toggleCompleted={toggleCompleted}
-              updateNotes={updateNotes}
-              activeTab={activeTab}
-              rawMarkdown={rawMarkdown}
-              isGenerating={isGenerating}
-              terminalEndRef={terminalEndRef}
-              triggerToast={triggerToast}
-              setSelectedModelName={setSelectedModelName}
-            />
-          </div>
-        </section>
-      </main>
-
-      {/* PRINT-ONLY CONTAINER (Specifically structured with clean page-breaks, no UI, title page) */}
+      {/* PRINT-ONLY LAYOUT */}
       <PrintLayout
         parsedBank={parsedBank}
         vendorName={vendorName}
@@ -817,11 +828,7 @@ export default function App() {
       />
 
       {/* FOOTER BAR */}
-      <footer className="no-print border-t border-[#141414] h-10 px-6 flex items-center justify-between text-[11px] font-mono bg-[#E4E3E0] z-10 text-black">
-        <div>© {new Date().getFullYear()} VENDOR INTELLIGENCE UNIT</div>
-        <div className="hidden sm:block">STATUS: SECURE_SYNC // PORT_3000_ACTIVE</div>
-        <div>LATENCY: 0.38s | GEMINI-3.5-FLASH</div>
-      </footer>
+      <Footer />
     </div>
   );
 }

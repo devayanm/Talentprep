@@ -1,6 +1,6 @@
 {
   "name": "Interview Question Bank Generator",
-  "description": "Generate tailored vendor-level and client-level interview preparation guides by analyzing resumes and job descriptions.",
+  "description": "A comprehensive job preparation suite. Generate tailored interview question banks, reformatted ATS-friendly LaTeX resumes matching specific presets with page target controls, and matching LaTeX cover letters.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
