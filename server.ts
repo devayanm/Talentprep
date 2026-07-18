@@ -54,7 +54,8 @@ app.post("/api/extract-text", async (req, res) => {
         });
       }
       
-      console.log(`Extracting text from PDF via Gemini: ${fileName}`);
+      const preferredModel = req.body.preferredModel || "auto";
+      console.log(`Extracting text from PDF via Gemini: ${fileName} using model selection: ${preferredModel}`);
       const pdfPart = {
         inlineData: {
           mimeType: "application/pdf",
@@ -62,16 +63,49 @@ app.post("/api/extract-text", async (req, res) => {
         },
       };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: [
-          pdfPart,
-          { text: "Extract and return the full raw text content of this document exactly. Retain formatting (like bullet points, lists, sections, dates, and headers). Do not add any conversational text or summary. Return only the raw text of the document." }
-        ],
-      });
+      const extractPrompt = "Extract and return the full raw text content of this document exactly. Retain formatting (like bullet points, lists, sections, dates, and headers). Do not add any conversational text or summary. Return only the raw text of the document.";
+      
+      let responseText = "";
+      let lastErr: any = null;
 
-      const extractedText = response.text || "";
-      return res.json({ text: extractedText });
+      if (preferredModel && preferredModel !== "auto") {
+        try {
+          const response = await ai.models.generateContent({
+            model: preferredModel,
+            contents: [pdfPart, { text: extractPrompt }],
+          });
+          responseText = response.text || "";
+        } catch (err: any) {
+          console.error(`Extraction failed with preferred model ${preferredModel}:`, err);
+          throw new Error(`The requested model '${preferredModel}' failed to extract text (possibly rate-limited or busy). Error: ${err.message || err}`);
+        }
+      } else {
+        // Cascade mode
+        const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+        for (const model of modelsToTry) {
+          try {
+            console.log(`Trying extraction with model ${model}...`);
+            const response = await ai.models.generateContent({
+              model: model,
+              contents: [pdfPart, { text: extractPrompt }],
+            });
+            responseText = response.text || "";
+            if (responseText) {
+              console.log(`Extraction successful with model ${model}!`);
+              break;
+            }
+          } catch (err: any) {
+            lastErr = err;
+            console.warn(`Extraction failed with model ${model}. Trying next in cascade...`);
+          }
+        }
+
+        if (!responseText) {
+          throw new Error(`All models failed to extract text from PDF. The models are likely experiencing heavy traffic. Please try again or select a specific model. Details: ${lastErr?.message || lastErr}`);
+        }
+      }
+
+      return res.json({ text: responseText });
     } else if (isDocx) {
       console.log(`Extracting text from DOCX via mammoth: ${fileName}`);
       const buffer = Buffer.from(fileBase64, "base64");
@@ -819,6 +853,192 @@ Begin generating the compilable LaTeX Interview Briefing.
   } catch (err: any) {
     console.error("Interview Pitch LaTeX stream error:", err);
     res.write(`data: ${JSON.stringify({ error: err.message || "An error occurred during interview briefing generation." })}\n\n`);
+    res.end();
+  }
+});
+
+// Endpoint to stream generated recruiter-style Job Description
+app.post("/api/generate-jd", async (req, res) => {
+  const { resume, config } = req.body;
+
+  if (!ai) {
+    return res.status(500).json({
+      error: "GEMINI_API_KEY is not configured. Please configure it in Settings > Secrets.",
+    });
+  }
+
+  const {
+    candidateName,
+    targetRole,
+    targetClient,
+    vendorName,
+    location,
+    duration,
+    payRate,
+    domain,
+    specializationProfile,
+  } = config || {};
+
+  const prompt = `You are a strict, enterprise-grade AI system that outputs Job Descriptions (JDs) following a highly-defined markdown template. 
+
+CORE MISSION:
+You are provided with a strict Markdown template. Your sole task is to generate the content for each section based on the Candidate Resume, Candidate Specialization Profile, and Target Specs, and return the template fully populated.
+Do NOT modify the structure, do NOT change the header wording, do NOT add extra headers, and do NOT remove any headers.
+Do NOT wrap the output in markdown code blocks (e.g. do NOT use triple backticks block wrapper).
+Do NOT include any introduction, conversational text, or explanation before or after the JD. Output ONLY the filled template.
+
+--- STRICT MARKDOWN TEMPLATE TO FILL ---
+Hello ${candidateName || "XYZ"},
+
+Hope this email finds you well!
+
+Kindly go through the job description and let me know if you are interested.
+
+
+**Role:** ${targetRole || "Role Specified"}
+**Location:** ${location || "Remote"}
+**Duration:** ${duration || "12+ Months Contract"}
+**Prime Vendor:** **${vendorName || "Staffing Partner"}**
+**End Client:** **${targetClient || "Confidential Client"}**
+**Pay Rate:** ${payRate || "$55/hr - $75/hr"}
+
+
+### **Job Summary:**
+
+[1 or 2 paragraphs of Job Summary text describing the role, mission, and setting. If multiple paragraphs, separate with a blank line. Aligned to candidate background but 1-2 levels stronger. Make sure to bold key terms like target client and role title where they first appear.]
+
+### **Requirements:**
+
+* **[Requirement item 1 title/key-phrase in bold]** [details...]
+* **[Requirement item 2 title/key-phrase in bold]** [details...]
+... [Provide exactly 8-10 high-quality, relevant requirements. No generic bullet symbols other than '* '. Bold the initial key-phrase of every single requirement bullet.]
+
+### **Nice to Have:**
+
+* **[Nice-to-Have item 1 in bold]** [details...]
+... [Provide exactly 3-5 relevant nice-to-have items. No generic bullet symbols other than '* '. Bold the initial key-phrase of every single bullet.]
+
+### **Responsibilities:**
+
+* **[Responsibility item 1 action title in bold]** [action and business impact...]
+* **[Responsibility item 2 action title in bold]** [action and business impact...]
+... [Provide exactly 8-10 high-quality, relevant responsibilities. No generic bullet symbols other than '* '. Start each bullet with a strong action verb and bold the initial key-phrase of every single responsibility bullet.]
+
+--- END OF TEMPLATE ---
+
+--- VALUES TO POPULATE INTO THE TEMPLATE ---
+Candidate Name: ${candidateName || "XYZ"}
+Candidate Specialization Profile: ${specializationProfile || "None"}
+Target Role: ${targetRole || "Role Specified"}
+Location: ${location || "Remote"}
+Duration: ${duration || "12+ Months Contract"}
+Prime Vendor: ${vendorName || "Staffing Partner"}
+End Client: ${targetClient || "Confidential Client"}
+Pay Rate: ${payRate || "$55/hr - $75/hr"}
+
+--- CANDIDATE RESUME FOR PROFILE ALIGNMENT ---
+${resume || "No resume provided. Assume a standard high-caliber professional matching the target role."}
+
+--- ENHANCEMENT & ATS RULES (APPLY WHEN GENERATING THE CONTENT TO FILL) ---
+1. PROFILE ALIGNMENT & ATS-OPTIMIZATION:
+- Content must align with the candidate's core domain, experience, and technical direction.
+- Add adjacent technologies, enterprise expectations, and distributed/cloud-native/production-grade engineering expectations.
+- Maintain a highly technical, professional, and powerful tone. Every bullet must feel realistic.
+- Every single bullet point under Requirements, Nice to Have, and Responsibilities MUST start with an asterisk followed by a space ('* ') and have the initial key phrase bolded (e.g. "* **5+ years** of experience in...").
+
+2. MANDATORY VARIATION RULE:
+- Vary role titles, summaries, technical wording, responsibilities, and requirement orders so it feels independently crafted rather than repetitive.
+
+3. SPECIALIZATION-SPECIFIC RULES:
+${specializationProfile === "bindu" ? `- Inject highly technical AI/ML/Data Engineering terminology, enterprise ML systems, distributed processing, LLM/RAG, PySpark, MLOps, cloud-scale pipelines, and cloud data warehouse (CDW) context.` : ""}
+${specializationProfile === "harsha" ? `- Inject AI systems, LLM, RAG, inference pipelines, NLP, and AI infrastructure terminology.` : ""}
+${specializationProfile === "kirandeep" ? `- Inject Salesforce architecture, Apex, LWC, CRM integrations, enterprise CRM automation, and CI/CD terminology.` : ""}
+${specializationProfile === "likhitha" ? `- Inject scalable frontend, performance optimization, UI engineering, React ecosystem, observability, and design systems.` : ""}
+
+Begin generating the populated template. Remember, do not output backticks or wrap the output. Output raw text of the filled template directly.
+`;
+
+  try {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const preferredModel = req.body.preferredModel || "auto";
+    let resultStream;
+    let selectedModel = "gemini-3.5-flash";
+    let lastError: any = null;
+
+    // Helper function to execute stream with retries
+    async function tryModelWithRetry(modelName: string, retries = 2, delay = 1000): Promise<any> {
+      try {
+        console.log(`Attempting JD generation with model ${modelName}...`);
+        const stream = await ai.models.generateContentStream({
+          model: modelName,
+          contents: prompt,
+          config: {
+            temperature: 0.3,
+          },
+        });
+        return stream;
+      } catch (err: any) {
+        console.error(`Error with model ${modelName}:`, err?.message || err);
+        const isTransient = err?.status === 503 || 
+                            err?.status === 429 || 
+                            err?.message?.includes("503") || 
+                            err?.message?.includes("429") ||
+                            err?.message?.includes("UNAVAILABLE") ||
+                            err?.message?.includes("high demand") ||
+                            err?.message?.includes("busy");
+        
+        if (isTransient && retries > 0) {
+          console.warn(`Transient error on model ${modelName}. Retrying in ${delay}ms... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return tryModelWithRetry(modelName, retries - 1, delay * 2);
+        }
+        throw err;
+      }
+    }
+
+    if (preferredModel && preferredModel !== "auto") {
+      try {
+        selectedModel = preferredModel;
+        resultStream = await tryModelWithRetry(preferredModel, 2, 1000);
+      } catch (err: any) {
+        console.error(`User preferred model ${preferredModel} failed for JD:`, err);
+        const errMessage = err?.message || String(err);
+        const userFriendlyError = `The requested model '${preferredModel}' is currently experiencing extremely high demand or has crossed its rate limit. Please select a different model from the dropdown (e.g. Gemini 3.1 Flash Lite) or choose 'Auto-Fallback Mode' and try again. [Details: ${errMessage}]`;
+        throw new Error(userFriendlyError);
+      }
+    } else {
+      // Auto-fallback cascade mode
+      const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+      for (const model of modelsToTry) {
+        try {
+          selectedModel = model;
+          resultStream = await tryModelWithRetry(model, 1, 1000);
+          if (resultStream) break;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Model ${model} failed in cascade for JD. Trying next...`);
+        }
+      }
+
+      if (!resultStream) {
+        throw new Error(`All automatic models are currently overloaded. Please choose a specific model (like Gemini 3.1 Flash Lite) to attempt a manual connection. Details: ${lastError?.message || lastError}`);
+      }
+    }
+
+    for await (const chunk of resultStream) {
+      if (chunk.text) {
+        res.write(`data: ${JSON.stringify({ text: chunk.text, model: selectedModel })}\n\n`);
+      }
+    }
+
+    res.write("data: [DONE]\n\n");
+    res.end();
+  } catch (err: any) {
+    console.error("Gemini JD stream error:", err);
+    res.write(`data: ${JSON.stringify({ error: err.message || "An error occurred during JD generation." })}\n\n`);
     res.end();
   }
 });

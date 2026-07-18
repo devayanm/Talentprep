@@ -23,6 +23,7 @@ import NavigationTabs from "./components/NavigationTabs";
 import Footer from "./components/Footer";
 import LatexWorkspace from "./components/LatexWorkspace";
 import LandingPage from "./components/LandingPage";
+import JDCreatorWorkspace from "./components/JDCreatorWorkspace";
 
 function AutoPrintTrigger() {
   useEffect(() => {
@@ -63,7 +64,7 @@ export default function App() {
   
   // Custom Modules State (Dashboard + LaTeX Workspace)
   const [viewPage, setViewPage] = useState<'home' | 'workspace'>('home');
-  const [selectedModule, setSelectedModule] = useState<'screen_prep' | 'resume' | 'cover_letter' | 'pitch'>('screen_prep');
+  const [selectedModule, setSelectedModule] = useState<'screen_prep' | 'resume' | 'cover_letter' | 'pitch' | 'jd_creator'>('screen_prep');
   const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<string>("default_alex_webb");
   const [resumeLatex, setResumeLatex] = useState<string>(RESUME_TEMPLATES[0].latex);
   const [coverLetterLatex, setCoverLetterLatex] = useState<string>(DEFAULT_COVER_LETTER_TEMPLATE);
@@ -653,9 +654,20 @@ export default function App() {
               >
                 ⚡ Pitch & Cheat-Sheet
               </button>
+
+              <button
+                onClick={() => setSelectedModule('jd_creator')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedModule === 'jd_creator' 
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                💼 Recruiter JD Creator
+              </button>
             </div>
 
-            {selectedModule !== 'screen_prep' && (
+            {selectedModule !== 'screen_prep' && selectedModule !== 'jd_creator' && (
               <button
                 onClick={() => handleGenerateLatex(selectedModule)}
                 disabled={isGeneratingLatex}
@@ -813,7 +825,7 @@ export default function App() {
                 setJdText={setJobDescription}
               />
             </div>
-          ) : (
+          ) : selectedModule === 'pitch' ? (
             <div className="flex-1 flex flex-col min-h-0">
               <LatexWorkspace
                 latexCode={pitchLatex}
@@ -829,6 +841,13 @@ export default function App() {
                 setResumeText={setResume}
                 jdText={jobDescription}
                 setJdText={setJobDescription}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col min-h-0">
+              <JDCreatorWorkspace
+                resumeText={resume}
+                preferredModel={selectedModelName}
               />
             </div>
           )}

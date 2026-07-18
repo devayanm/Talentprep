@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 interface LandingPageProps {
-  onSelectModule: (module: 'screen_prep' | 'resume' | 'cover_letter' | 'pitch') => void;
+  onSelectModule: (module: 'screen_prep' | 'resume' | 'cover_letter' | 'pitch' | 'jd_creator') => void;
   hasApiKey: boolean | null;
 }
 
@@ -58,7 +58,7 @@ export default function LandingPage({ onSelectModule, hasApiKey }: LandingPagePr
           <p className="text-2xl font-extrabold text-white mt-1">Select an active workstation below</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Card 1: Screen Prep Bank */}
           <div 
             onClick={() => onSelectModule('screen_prep')}
@@ -194,6 +194,41 @@ export default function LandingPage({ onSelectModule, hasApiKey }: LandingPagePr
               </ul>
             </div>
             <div className="mt-8 flex items-center gap-1.5 text-xs font-mono font-bold text-violet-400 group-hover:underline">
+              <span>Open Workstation</span>
+              <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* Card 5: Recruiter JD Creator */}
+          <div 
+            onClick={() => onSelectModule('jd_creator')}
+            className="group relative bg-slate-900/40 border border-white/10 hover:border-emerald-500/40 hover:bg-slate-900/60 p-8 rounded-2xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(16,185,129,0.1)] flex flex-col justify-between"
+          >
+            <div className="absolute top-4 right-4 p-2 bg-white/5 group-hover:bg-emerald-500/10 text-slate-400 group-hover:text-emerald-400 rounded-lg transition-colors">
+              <ArrowUpRight size={16} />
+            </div>
+            <div>
+              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl w-fit mb-6">
+                <Layers size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-white font-sans group-hover:text-emerald-400 transition-colors">
+                Recruiter JD Creator
+              </h3>
+              <p className="mt-3 text-slate-400 text-sm leading-relaxed">
+                Generate highly realistic, enterprise-grade, ATS-friendly Job Descriptions tailored to selected candidate profiles. Infuses strict specialization rules, prime vendor/end-client mappings, and structures formatted recruiter emails.
+              </p>
+              <ul className="mt-6 space-y-2.5 text-xs text-slate-400 border-t border-white/5 pt-5">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 size={13} className="text-emerald-400" />
+                  <span>Strict Markdown templates for rich document rendering</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 size={13} className="text-emerald-400" />
+                  <span>Copyable raw Markdown and seamless styled PDF printing</span>
+                </li>
+              </ul>
+            </div>
+            <div className="mt-8 flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 group-hover:underline">
               <span>Open Workstation</span>
               <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
             </div>

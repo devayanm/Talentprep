@@ -9,13 +9,34 @@ interface HeaderProps {
 
 export default function Header({ hasApiKey, viewPage, onGoHome }: HeaderProps) {
   const [utcTime, setUtcTime] = useState("");
+  const [localTime, setLocalTime] = useState("");
+  const [locationLabel, setLocationLabel] = useState("LOCAL");
 
   useEffect(() => {
-    const updateUtcTime = () => {
-      setUtcTime(new Date().toISOString().slice(11, 19));
+    // Compute timezone and GMT offset label once on mount
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const cityName = tz ? tz.split('/').pop()?.replace(/_/g, ' ') : 'Local';
+      
+      const offset = -new Date().getTimezoneOffset();
+      const sign = offset >= 0 ? "+" : "-";
+      const absOffset = Math.abs(offset);
+      const hours = Math.floor(absOffset / 60);
+      const minutes = absOffset % 60;
+      const gmtString = `GMT${sign}${hours}${minutes !== 0 ? `:${minutes.toString().padStart(2, "0")}` : ""}`;
+      
+      setLocationLabel(`${cityName ? cityName.toUpperCase() : "LOCAL"} (${gmtString})`);
+    } catch (e) {
+      setLocationLabel("LOCAL");
+    }
+
+    const updateTimes = () => {
+      const now = new Date();
+      setUtcTime(now.toISOString().slice(11, 19));
+      setLocalTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
     };
-    updateUtcTime();
-    const interval = setInterval(updateUtcTime, 1000);
+    updateTimes();
+    const interval = setInterval(updateTimes, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -60,7 +81,8 @@ export default function Header({ hasApiKey, viewPage, onGoHome }: HeaderProps) {
           </div>
         )}
         <span className="text-slate-400 hidden sm:inline border-l border-white/10 pl-4">MODE: SYNC</span>
-        <span className="text-slate-400 border-l border-white/10 pl-4">UTC: <span className="text-orange-400 font-bold">{utcTime}</span></span>
+        <span className="text-slate-400 hidden md:inline border-l border-white/10 pl-4">UTC: <span className="text-orange-400 font-bold">{utcTime}</span></span>
+        <span className="text-slate-400 border-l border-white/10 pl-4">{locationLabel}: <span className="text-pink-400 font-bold">{localTime}</span></span>
       </div>
     </header>
   );
